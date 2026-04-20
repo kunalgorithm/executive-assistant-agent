@@ -237,6 +237,26 @@ executive-assistant-agent/
 
 ---
 
+## Environments
+
+| Environment | Frontend                  | API / server                              | Notes                                                                     |
+| ----------- | ------------------------- | ----------------------------------------- | ------------------------------------------------------------------------- |
+| **Local**   | `http://localhost:3000`   | `https://ea.ngrok.dev` (via ngrok tunnel) | SendBlue + Google OAuth must reach a public URL, so we tunnel the server. |
+| **Staging** | `https://ea.getsayla.com` | `https://api.ea.getsayla.com`             | Hosted on Render.                                                         |
+| **Prod**    | `https://sayla.com`       | `https://api.sayla.com`                   |                                                                           |
+
+### Local ngrok tunnel
+
+The project uses a reserved ngrok domain so the tunnel URL is stable across restarts. Start it with:
+
+```bash
+ngrok http --url=ea.ngrok.dev 80
+```
+
+Point SendBlue's inbound webhook at `https://ea.ngrok.dev/api/messaging/webhook/inbound` while working locally.
+
+---
+
 ## Environment Variables
 
 ### Server
@@ -255,13 +275,13 @@ GEMINI_API_KEY="..."
 SENDBLUE_API_KEY="..."
 SENDBLUE_SECRET="..."
 SENDBLUE_FROM_NUMBER="+1..."
-SENDBLUE_WEBHOOK_BASE_URL="https://your-backend.com"
+SENDBLUE_WEBHOOK_BASE_URL="https://ea.ngrok.dev"   # local; staging: https://api.ea.getsayla.com
 SENDBLUE_WEBHOOK_SECRET="..."
 
 # Google (Calendar + Gmail)
 GOOGLE_CLIENT_ID="..."
 GOOGLE_CLIENT_SECRET="..."
-GOOGLE_REDIRECT_URI="https://your-backend.com/api/auth/google/callback"
+GOOGLE_REDIRECT_URI="https://ea.ngrok.dev/api/auth/google/callback"   # local; staging: https://api.ea.getsayla.com/api/auth/google/callback
 
 # Owner
 OWNER_PHONE_NUMBER="+1..."   # the only number allowed to talk to the agent
@@ -273,7 +293,7 @@ JWT_SECRET="..."
 ### Frontend
 
 ```bash
-VITE_API_URL="https://your-backend.com"
+VITE_API_URL="https://ea.ngrok.dev"   # local; staging: https://api.ea.getsayla.com
 ```
 
 ---

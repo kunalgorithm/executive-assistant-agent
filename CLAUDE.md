@@ -18,6 +18,16 @@ web/          # React frontend
 server/       # Express backend
 ```
 
+## Environments
+
+| Env     | Frontend                  | API / server                    |
+| ------- | ------------------------- | ------------------------------- |
+| Local   | `http://localhost:3000`   | `https://ea.ngrok.dev` (tunnel) |
+| Staging | `https://ea.getsayla.com` | `https://api.ea.getsayla.com`   |
+| Prod    | `https://sayla.com`       | `https://api.sayla.com`         |
+
+Start the local tunnel with: `ngrok http --url=ea.ngrok.dev 80`. See README "Environments" for details.
+
 ## Commands
 
 - `pnpm dev` — run dev environment

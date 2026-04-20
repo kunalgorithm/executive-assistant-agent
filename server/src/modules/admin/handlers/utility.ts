@@ -5,39 +5,7 @@ import { logger } from '@/utils/log';
 import { statusCodes } from '@/utils/http';
 import { getZodErrors } from '@/utils/error';
 import { updateNotesSchema } from './helpers';
-import { SMS_TEMPLATES } from '@/utils/constants';
-import { sendAndSaveOutbound } from '@/modules/messaging/send';
 import { ANALYTICS_EVENTS, trackEvent } from '@/utils/analytics';
-
-export async function handleSendContactCard(req: Request, res: Response) {
-  const userId = req.params.userId as string;
-
-  const user = await db.user.findUnique({
-    where: { id: userId },
-    select: { id: true, phoneNumber: true, firstName: true },
-  });
-
-  if (!user) {
-    res.status(statusCodes.NOT_FOUND).json({ data: null, errors: { user: 'User not found' } });
-    return;
-  }
-  if (!user.phoneNumber) {
-    res.status(statusCodes.BAD_REQUEST).json({ data: null, errors: { phone: 'User has no phone number' } });
-    return;
-  }
-
-  logger.info('[admin] Sending contact card to user', { userId, phoneNumber: user.phoneNumber });
-  await sendAndSaveOutbound(
-    'hey save my number btw 👆',
-    user.phoneNumber,
-    userId,
-    SMS_TEMPLATES.WELCOME_CONTACT_CARD_URL,
-  );
-  logger.info('[admin] Contact card sent', { userId });
-  trackEvent(ANALYTICS_EVENTS.contact_card_sent, userId);
-
-  res.status(statusCodes.OK).json({ data: { success: true }, errors: null });
-}
 
 export async function handleUpdateAdminNotes(req: Request, res: Response) {
   const userId = req.params.userId as string;

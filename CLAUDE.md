@@ -1,6 +1,6 @@
-# Superconnector
+# Executive Assistant Agent
 
-Full-stack TypeScript monorepo for intelligent user matching and messaging.
+Full-stack TypeScript monorepo for an iMessage-based executive assistant that helps a single owner manage calendar and email.
 
 ## Tech Stack
 

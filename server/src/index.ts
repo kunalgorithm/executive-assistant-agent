@@ -12,17 +12,15 @@ import { globalErrorHandlerMiddleware } from '@/utils/error';
 import { adminRouter } from '@/modules/admin';
 import { startCronJobs } from '@/modules/cron';
 import { messagingRouter } from '@/modules/messaging';
-import { warmupEmbeddings } from '@/utils/embeddings';
 
 const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 
-// Security headers
 app.use(
   helmet({
-    contentSecurityPolicy: env.NODE_ENV === 'production' ? undefined : false, // Disable CSP in dev for easier debugging
-    crossOriginEmbedderPolicy: false, // Allow embedding (needed for OAuth flows)
+    contentSecurityPolicy: env.NODE_ENV === 'production' ? undefined : false,
+    crossOriginEmbedderPolicy: false,
   }),
 );
 
@@ -52,12 +50,10 @@ app.use(globalErrorHandlerMiddleware);
 async function startServer() {
   try {
     await db.$connect();
-    await db.$executeRaw`SELECT 1`; // Test the connection: Fail fast if db unreachable
+    await db.$executeRaw`SELECT 1`;
 
     logger.info('Database connected');
     startCronJobs();
-
-    await warmupEmbeddings(); // preload the embedding model to reduce latency during requests
 
     app.listen(env.PORT, () => {
       logger.info(`Server running on port: ${env.PORT}`);

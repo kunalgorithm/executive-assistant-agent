@@ -25,11 +25,15 @@ const envSchema = z.object({
   SENDBLUE_WEBHOOK_BASE_URL: z.string(),
   SENDBLUE_WEBHOOK_SECRET: z.string(),
 
+  // Google OAuth (Calendar + Gmail) — planned for MVP tool layer
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_REDIRECT_URI: z.string().optional(),
+
+  // Single-owner lock: only this number is allowed to talk to the agent.
+  OWNER_PHONE_NUMBER: z.string().optional(),
+
   JWT_SECRET: z.string().min(32),
-
-  SEED_DEMO_USER_PASSWORD: z.string().optional(), // required only in Development
-
-  HF_CACHE_DIR: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);

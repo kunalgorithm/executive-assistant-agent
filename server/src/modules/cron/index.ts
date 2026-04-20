@@ -1,7 +1,6 @@
-import { startMatchingCron } from './matching';
-import { startNotificationCron } from './notifications';
+import { logger } from '@/utils/log';
 
 export function startCronJobs() {
-  startMatchingCron();
-  startNotificationCron();
+  // Scheduled briefings (morning/evening) will be registered here.
+  logger.info('[cron] No scheduled jobs registered');
 }

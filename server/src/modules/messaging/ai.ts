@@ -59,7 +59,14 @@ export async function generateSaylaResponse(
   try {
     const response = await ai.models.generateContent({
       model: GEMINI_FLASH3_MODEL,
-      config: { systemInstruction, maxOutputTokens: 2000, temperature: 0.7 },
+      config: {
+        systemInstruction,
+        maxOutputTokens: 2000,
+        temperature: 0.7,
+        // Gemini 3 is a reasoning model — thinking tokens count toward maxOutputTokens.
+        // Disable thinking so the whole budget goes to the actual reply.
+        thinkingConfig: { thinkingBudget: 0 },
+      },
       contents: conversationHistory.map((msg) => ({ role: msg.role, parts: [{ text: msg.content }] })),
     });
 
@@ -119,6 +126,7 @@ export async function pickReaction(messageContent: string) {
           'You are an executive assistant texting over iMessage. You RARELY react to messages — only when something genuinely stands out (exciting news, a thank you, etc.). Most messages should get NO reaction. Always respond with valid JSON.',
         temperature: 0.3,
         maxOutputTokens: 100,
+        thinkingConfig: { thinkingBudget: 0 },
         responseMimeType: 'application/json',
         responseJsonSchema: pickReactionSchema.toJSONSchema(),
       },

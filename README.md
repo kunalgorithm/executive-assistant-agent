@@ -1,110 +1,117 @@
-# Executive Assistant Agent 
+# Executive Assistant Agent
 
-**An executive assistant that lives in iMessage** 
+**A personal executive assistant that lives in iMessage.**
 
-Sayla is an AI superconnector that helps people find and meet the right connections through natural conversation. No profiles to fill out, no swiping, no awkward networking events — just text Sayla like you would a friend, and she'll introduce you to people you'd genuinely click with.
+Text your assistant like you would a chief of staff — ask about your day, triage your inbox, schedule meetings, or reschedule conflicts. No app to open, no dashboard to check. Just iMessage.
+
+---
+
+## MVP Scope
+
+The MVP is a **single-player** executive assistant for one user (the owner). It is not a multi-tenant product. It does not connect users to each other. It does one thing well: help the owner manage **calendar** and **email** via iMessage.
+
+### In scope (MVP)
+
+- **Calendar (Google Calendar)**
+  - Summarize today / this week ("what's on my calendar tomorrow?")
+  - Create events from natural language ("book 30m with Priya next Tues afternoon")
+  - Reschedule, cancel, or move events
+  - Surface conflicts and suggest alternatives
+  - Respect the owner's working hours and timezone
+
+- **Email (Gmail)**
+  - Daily / on-demand inbox triage ("what needs my attention?")
+  - Summarize threads
+  - Draft replies for approval via iMessage (owner confirms before send)
+  - Mark as read / archive / snooze on command
+  - Flag messages requiring human decision
+
+- **Conversational surface**
+  - iMessage only (via SendBlue)
+  - Preserves the existing warm, opinionated personality
+  - Remembers context across messages (ongoing threads, preferences, recurring people)
+
+### Out of scope (MVP)
+
+- Multi-user / introductions / matching / embeddings (removed from the prior Sayla product)
+- Slack, Discord, web chat, mobile app
+- Task managers (Linear, Asana, Todoist)
+- Document drafting beyond email replies
+- Voice / phone calls
+- Admin dashboard for other users (a single-owner admin view stays for debugging only)
 
 ---
 
 ## Value Proposition
 
-### The Problem
+### The problem
+The owner's day is fragmented across Gmail and Google Calendar. Most interactions with these tools are short, repetitive decisions (accept/decline, reply/archive, reschedule). They don't need a UI — they need a delegate.
 
-Traditional networking is broken:
+### The solution
+An assistant that:
 
-- LinkedIn is transactional and overwhelming
-- Networking events are awkward and time-consuming
-- Dating-style apps for professional networking feel forced
-- People don't know what they're looking for until they find it
-
-### The Solution
-
-Sayla reimagines networking as conversation. She's an AI wingman who:
-
-- **Lives where you already are** — iMessage, the most natural communication medium
-- **Gets to know you through real conversation** — not forms or profiles
-- **Makes quality introductions** — not quantity, just the right people
-- **Remembers everything** — your interests, goals, and what makes you tick
+- **Lives in iMessage** — the fastest surface to reach the owner
+- **Acts, doesn't just inform** — proposes the action, waits for approval, then executes
+- **Keeps the owner in the loop** — destructive or outbound actions (send email, cancel meeting) require explicit confirmation
+- **Is proactive when asked** — morning briefing, end-of-day review, meeting prep
 
 ---
 
 ## How It Works
 
 ```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│                 │     │                 │     │                 │
-│   1. CHAT       │ ──▶ │   2. DISCOVER   │ ──▶ │   3. CONNECT    │
-│                 │     │                 │     │                 │
-│  Text Sayla     │     │  She learns     │     │  She makes      │
-│  like a friend  │     │  what you want  │     │  the intro      │
-│                 │     │                 │     │                 │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
+  iMessage ──▶  SendBlue webhook  ──▶  Express server
+                                            │
+                                            ├─▶ LLM (Gemini) plans a response or tool call
+                                            │
+                                            ├─▶ Google Calendar API (read/write events)
+                                            ├─▶ Gmail API (read threads, draft/send replies)
+                                            │
+                                            └─▶ SendBlue ──▶ iMessage reply to owner
 ```
 
-1. **Chat** — Text Sayla like you would a friend. She listens, remembers, and has her own opinions.
-2. **Discover** — Through real conversation, she helps you figure out what you actually want — in friends, work, everything.
-3. **Connect** — When she finds someone you'd genuinely vibe with, she makes the intro. Quality over quantity, always.
+1. Owner texts the assistant's number.
+2. Server receives the webhook, loads recent conversation + owner context.
+3. LLM decides: respond conversationally, or call a calendar / email tool.
+4. For write actions (send email, create/cancel event), the assistant proposes and waits for "yes".
+5. Reply is sent back to iMessage.
 
 ---
 
-## Product Features
+## Product Principles
 
-### Sayla — The AI Wingman
-
-- **Personality-driven AI** — Warm, opinionated, and genuinely caring. Not a generic chatbot.
-- **Conversational onboarding** — No forms. Just chat naturally about your interests and goals.
-- **Proactive check-ins** — She texts you when something (or someone) makes her think of you.
-- **Memory & context** — Remembers everything you've told her and references it naturally.
-
-### Smart Matching
-
-- **Vector embeddings** — Profiles are converted to 768-dimensional vectors for semantic similarity matching.
-- **Intent compatibility** — Matches based on complementary goals:
-  - Hiring ↔ Looking for work
-  - Fundraising ↔ Investing
-  - Networking ↔ Networking
-  - Mentorship ↔ Looking for a mentor
-- **Quality threshold** — Only surfaces matches above a configurable similarity score (default 0.75).
-
-### Connection Experience
-
-- **Group iMessage intros** — Sayla introduces matches directly in a group chat with context.
-- **Safety features** — Report functionality, content moderation, and crisis resource support.
-
-### Admin Dashboard
-
-- **User management** — View all users, statuses, tags, and activity.
-- **Conversation viewer** — See Sayla's conversations with any user for debugging/QA.
-- **Sortable/filterable** — By status, last activity, check-in count, or creation date.
+- **Trust is the product.** The assistant never sends an email or modifies a calendar event without explicit owner confirmation. Read actions are fine unprompted.
+- **One owner, one number.** The MVP assumes a single authenticated user. No auth flows for guests, invitees, or matched pairs.
+- **Short messages.** Replies are concise. Long lists are bulleted. The assistant does not lecture.
+- **Recoverable.** Every write action logs enough detail that the owner can undo it via a follow-up message ("undo that last reschedule").
 
 ---
 
 ## Architecture
 
 ```
-superconnector/
-├── web/                    # React frontend
-│   ├── src/
-│   │   ├── api/            # TanStack Query hooks
-│   │   ├── components/     # UI components
-│   │   ├── pages/          # Route pages
-│   │   └── lib/            # Utilities
-│   └── vite.config.ts
+executive-assistant-agent/
+├── web/                    # Owner-facing admin UI (debug conversations, view logs)
+│   └── src/
+│       ├── api/            # TanStack Query hooks
+│       ├── components/
+│       ├── pages/
+│       └── lib/
 │
 ├── server/                 # Express backend
 │   ├── prisma/
-│   │   ├── schema.prisma   # Prisma schema
-│   │   └── migrations/     # Database migrations
+│   │   └── schema.prisma
 │   └── src/
 │       ├── modules/
-│       │   ├── messaging/  # SMS/iMessage + AI responses
-│       │   ├── matching/   # Vector matching algorithm
-│       │   ├── admin/      # Admin dashboard API
-│       │   └── cron/       # Scheduled jobs
-│       └── utils/          # Shared utilities
+│       │   ├── messaging/  # SendBlue webhook + AI orchestration
+│       │   ├── calendar/   # Google Calendar tools (to be built)
+│       │   ├── email/      # Gmail tools (to be built)
+│       │   ├── admin/      # Single-owner admin API
+│       │   └── cron/       # Scheduled briefings (morning/evening)
+│       └── utils/
 │
-├── docker-compose.yml      # Local PostgreSQL + pgvector
-└── pnpm-workspace.yaml     # Monorepo configuration
+├── docker-compose.yml      # Local PostgreSQL
+└── pnpm-workspace.yaml
 ```
 
 ---
@@ -118,65 +125,69 @@ superconnector/
 | React 19        | UI framework            |
 | Vite 7          | Build tool              |
 | React Router 7  | Routing                 |
-| TanStack Query  | Server state management |
+| TanStack Query  | Server state            |
 | Tailwind CSS 4  | Styling                 |
-| Motion (Framer) | Animations              |
-| nuqs            | URL state management    |
-| react-virtuoso  | Virtualized lists       |
+| Motion          | Animations              |
 
 ### Backend
 
-| Technology                | Purpose                                      |
-| ------------------------- | -------------------------------------------- |
-| Node.js 22+               | Runtime                                      |
-| Express 5                 | Web framework                                |
-| Prisma 7                  | Database ORM                                 |
-| PostgreSQL + pgvector     | Database + vector similarity                 |
-| Google Gemini             | AI responses & profile extraction            |
-| Hugging Face Transformers | Embedding generation (nomic-embed-text-v1.5) |
-| SendBlue                  | iMessage/SMS gateway                         |
-| node-cron                 | Scheduled jobs                               |
-| Winston                   | Logging                                      |
+| Technology             | Purpose                          |
+| ---------------------- | -------------------------------- |
+| Node.js 22+            | Runtime                          |
+| Express 5              | Web framework                    |
+| Prisma 7               | Database ORM                     |
+| PostgreSQL             | Database                         |
+| Google Gemini          | LLM + tool use                   |
+| Google Calendar API    | Calendar read/write              |
+| Gmail API              | Email read/draft/send            |
+| SendBlue               | iMessage gateway                 |
+| node-cron              | Scheduled briefings              |
+| Winston                | Logging                          |
+
+> Note: pgvector and HuggingFace embeddings are removed with the matching feature. Plain Postgres is sufficient for the MVP.
 
 ---
 
-### User Lifecycle
+## Data Model (MVP target)
 
-```
-onboarding                  ready_to_match          matched         inactive
-    │                             │                    │                │
-    ├─ awaiting_phone_link        │                    │                │
-    ├─ collecting_background      │                    │                │
-    ├─ collecting_interests       │                    │                │
-    └─ generating_embedding ──────┴────────────────────┴────────────────┘
-```
+- **Owner** — single row, holds Google OAuth tokens, timezone, working hours, preferences
+- **Message** — inbound/outbound iMessage record
+- **Conversation** — ongoing session context (recent turns, pending confirmations)
+- **ActionLog** — every calendar/email write with before/after snapshot for undo
 
 ---
 
-## API Reference
-
-### Admin
-
-| Endpoint                        | Method | Description                   |
-| ------------------------------- | ------ | ----------------------------- |
-| `/api/admin/users`              | GET    | List all users                |
-| `/api/admin/users/:id/messages` | GET    | Get user's Sayla conversation |
+## API Reference (planned)
 
 ### Webhooks (SendBlue)
 
 | Endpoint                         | Method | Description             |
 | -------------------------------- | ------ | ----------------------- |
-| `/api/messaging/webhook/inbound` | POST   | Inbound SMS/iMessage    |
-| `/api/messaging/webhook/status`  | POST   | Message delivery status |
+| `/api/messaging/webhook/inbound` | POST   | Inbound iMessage        |
+| `/api/messaging/webhook/status`  | POST   | Delivery status         |
+
+### OAuth (Google)
+
+| Endpoint                      | Method | Description                         |
+| ----------------------------- | ------ | ----------------------------------- |
+| `/api/auth/google/start`      | GET    | Begin OAuth for Calendar + Gmail    |
+| `/api/auth/google/callback`   | GET    | Exchange code, store tokens         |
+
+### Admin
+
+| Endpoint                        | Method | Description                 |
+| ------------------------------- | ------ | --------------------------- |
+| `/api/admin/conversation`       | GET    | Owner's iMessage transcript |
+| `/api/admin/action-log`         | GET    | Recent write actions        |
 
 ---
 
-## Cron Jobs
+## Cron Jobs (MVP)
 
-| Job               | Schedule         | Description                                                |
-| ----------------- | ---------------- | ---------------------------------------------------------- |
-| **Matching**      | Every 6 hours    | Batch matching cycle for all eligible users                |
-| **Notifications** | Every 15 minutes | Send group intros for ready matches (respects quiet hours) |
+| Job                 | Schedule          | Description                                 |
+| ------------------- | ----------------- | ------------------------------------------- |
+| **Morning brief**   | 7:30am owner's TZ | Today's calendar + top inbox items          |
+| **Evening recap**   | 6:00pm owner's TZ | Tomorrow preview + unread important threads |
 
 ---
 
@@ -191,15 +202,23 @@ DATABASE_URL="postgresql://..."
 # Client
 CLIENT_URL="https://your-frontend.com"
 
-# AI
+# LLM
 GEMINI_API_KEY="..."
 
-# SMS (SendBlue)
+# iMessage (SendBlue)
 SENDBLUE_API_KEY="..."
 SENDBLUE_SECRET="..."
 SENDBLUE_FROM_NUMBER="+1..."
 SENDBLUE_WEBHOOK_BASE_URL="https://your-backend.com"
 SENDBLUE_WEBHOOK_SECRET="..."
+
+# Google (Calendar + Gmail)
+GOOGLE_CLIENT_ID="..."
+GOOGLE_CLIENT_SECRET="..."
+GOOGLE_REDIRECT_URI="https://your-backend.com/api/auth/google/callback"
+
+# Owner
+OWNER_PHONE_NUMBER="+1..."   # the only number allowed to talk to the agent
 
 # Auth
 JWT_SECRET="..."
@@ -209,7 +228,6 @@ JWT_SECRET="..."
 
 ```bash
 VITE_API_URL="https://your-backend.com"
-VITE_SAYLA_PHONE="+1..."
 ```
 
 ---
@@ -225,26 +243,21 @@ VITE_SAYLA_PHONE="+1..."
 ### Quick Start
 
 ```bash
-# Clone the repository
-git clone https://github.com/cocomo-ai/superconnector.git
-cd superconnector
-
-# Install dependencies
+# Install
 pnpm install
 
-# Start PostgreSQL with pgvector
+# Start PostgreSQL
 docker-compose up -d
 
-# Set up environment variables
+# Configure env
 cp server/.env.example server/.env
 cp web/.env.example web/.env
-# Edit both files with your values
 
-# Run database migrations
+# Migrate DB
 cd server && pnpm prisma migrate dev
 
-# Start development servers
-pnpm dev  # In both web/ and server/ directories
+# Run
+pnpm dev
 ```
 
 ### Scripts
@@ -270,33 +283,20 @@ pnpm preview        # Preview production build
 
 ## External Services
 
-| Service                                     | Purpose                          | Required        |
-| ------------------------------------------- | -------------------------------- | --------------- |
-| [SendBlue](https://sendblue.co)             | iMessage/SMS send/receive        | Yes             |
-| [Google AI (Gemini)](https://ai.google.dev) | AI responses, profile extraction | Yes             |
-| [Hugging Face](https://huggingface.co)      | Embedding model (runs locally)   | Auto-downloaded |
+| Service                                     | Purpose                     | Required |
+| ------------------------------------------- | --------------------------- | -------- |
+| [SendBlue](https://sendblue.co)             | iMessage send/receive       | Yes      |
+| [Google AI (Gemini)](https://ai.google.dev) | LLM + tool use              | Yes      |
+| Google Cloud (Calendar + Gmail APIs)        | Calendar & email access     | Yes      |
 
 ---
 
-## Safety & Moderation
+## Safety & Trust
 
-Sayla is designed with safety in mind:
-
-- **Crisis support** — Responds to self-harm ideation with empathy and provides crisis resources (988 Lifeline, Crisis Text Line)
-- **Content boundaries** — Never NSFW, harmful, or manipulative content
-- **User reporting** — Matched users can report inappropriate behavior
-- **Rate limiting** — WebSocket and API rate limits prevent abuse
-- **Behavioral rules** — AI prompts include strict behavioral guidelines
+- **Confirmation required for writes.** Sending email or modifying calendar events always requires an explicit "yes" from the owner.
+- **Single-owner lock.** Inbound webhooks from any number other than `OWNER_PHONE_NUMBER` are rejected.
+- **Action log.** Every write is logged with a before/after snapshot so the owner can ask "undo that" in natural language.
+- **Scoped OAuth.** Google tokens are stored encrypted at rest. Minimum necessary scopes (calendar + gmail.modify).
+- **No third-party data sharing.** Conversation and email content are only sent to Gemini for response generation.
 
 ---
-
-## License
-
-Proprietary — Cocomo AI © 2024
-
----
-
-## Contact
-
-- **Website**: [cocomo.ai](https://cocomo.ai)
-- **Email**: [hello@cocomo.ai](mailto:hello@cocomo.ai)

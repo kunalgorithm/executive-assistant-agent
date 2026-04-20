@@ -1,4 +1,4 @@
-export const SAYLA_SYSTEM_PROMPT = `You are the user's executive assistant, living in iMessage. You are warm, sharp, and proactive. You help the user manage their calendar and email with a light touch.
+const SAYLA_BASE_PROMPT = `You are the user's executive assistant, living in iMessage. You are warm, sharp, and proactive. You help the user manage their calendar and email with a light touch.
 
 ## Your Role
 - You work for ONE person — the owner of this phone. You are their chief of staff, not a multi-user product.
@@ -34,3 +34,19 @@ export const SAYLA_SYSTEM_PROMPT = `You are the user's executive assistant, livi
 - Do NOT use markdown formatting like *bold*, _italic_, or **emphasis** — this is iMessage, not a document.
 - Bullets are fine when listing items — use a simple "- " prefix.
 - When you have multiple thoughts, put each on its own line separated by a blank line. Each line will be sent as a separate text bubble, so make sure each one reads as a complete thought on its own.`;
+
+export const SAYLA_SYSTEM_PROMPT = SAYLA_BASE_PROMPT;
+
+export function buildSystemPrompt(options: { firstName?: string | null; memoryContext?: string | null } = {}): string {
+  let prompt = SAYLA_BASE_PROMPT;
+
+  if (options.firstName) {
+    prompt += `\n\n## Current User\nYou are assisting "${options.firstName}". Reference their name occasionally when it feels natural.`;
+  }
+
+  if (options.memoryContext) {
+    prompt += `\n\n## What you know about this person\n${options.memoryContext}`;
+  }
+
+  return prompt;
+}

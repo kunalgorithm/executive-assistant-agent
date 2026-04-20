@@ -1,12 +1,13 @@
 import { ai } from '@/utils/gemini';
 
-import { SAYLA_SYSTEM_PROMPT } from './prompts';
+import { buildSystemPrompt } from './prompts';
 import { pickReactionSchema } from './helpers';
 import { db } from '@/utils/db';
 import { logger } from '@/utils/log';
 import { safeJsonParse } from '@/utils/json';
 import type { UserModel } from '@/generated/prisma/models/User';
 import { GEMINI_FLASH3_MODEL } from '@/utils/constants';
+import { getMemoryPacket } from '@/modules/memory';
 
 export type ConversationMessage = { role: 'user' | 'model'; content: string };
 
@@ -41,11 +42,10 @@ export async function generateSaylaResponse(
   conversationHistory: ConversationMessage[],
   user: UserModel,
 ): Promise<string | null> {
-  let systemInstruction = SAYLA_SYSTEM_PROMPT;
+  const latestUserMessage = [...conversationHistory].reverse().find((m) => m.role === 'user')?.content ?? '';
+  const memoryContext = await getMemoryPacket(user.id, latestUserMessage).catch(() => null);
 
-  if (user.firstName) {
-    systemInstruction += `\n\n## Current User\nYou are assisting "${user.firstName}". Reference their name occasionally when it feels natural.`;
-  }
+  const systemInstruction = buildSystemPrompt({ firstName: user.firstName, memoryContext });
 
   let rawResponse: string | undefined;
   try {

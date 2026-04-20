@@ -18,6 +18,7 @@ import { Prisma } from '@/generated/prisma/client';
 import { timezoneFromPhone } from '@/utils/timezone';
 import { ANALYTICS_EVENTS, trackEvent } from '@/utils/analytics';
 import { pickReaction, generateSaylaResponse, getUserConversation } from './ai';
+import { extractAndWriteMemories } from '@/modules/memory/extractor';
 
 export async function handleInboundMessageWebhook(req: Request, res: Response) {
   const { data, errors } = getZodErrors(sendblueInboundWebhookSchema, req.body);
@@ -116,6 +117,14 @@ async function processInboundMessageAsync(data: SendblueInboundPayload) {
   }
 
   await sendMultipartOutbound(aiResponse, data.from_number, user.id);
+
+  // Fire-and-forget: extract memories from this exchange without blocking the response
+  extractAndWriteMemories(data.content, aiResponse, conversationHistory, user.id).catch((err) => {
+    logger.warn('[memory] Background extraction failed', {
+      userId: user!.id,
+      error: err instanceof Error ? err.message : err,
+    });
+  });
 }
 
 export async function handleStatusCallbackWebhook(req: Request, res: Response) {

@@ -48,6 +48,31 @@ enum ActionLogStatus {
   UNDONE
 }
 
+enum MemoryType {
+  SCHEDULING
+  PEOPLE
+  COMMUNICATION
+  WORK_CONTEXT
+}
+
+enum MemoryCategory {
+  SEMANTIC
+  EPISODIC
+}
+
+enum MemoryStatus {
+  ACTIVE
+  SUPERSEDED
+  ARCHIVED
+}
+
+enum MemorySource {
+  USER_EXPLICIT
+  USER_INFERRED
+  ACTION_LOG
+  SYSTEM
+}
+
 model User {
   id          String  @id @default(uuid())
   refId       String  @unique @default(uuid()) @map("ref_id")
@@ -71,6 +96,8 @@ model User {
   personAliases     PersonAlias[]
   pendingActions    PendingAction[]
   actionLogs        ActionLog[]
+
+  memories        Memory[]
 
   adminNotes      String?          @map("admin_notes") @db.Text
   createdAt       DateTime         @default(now()) @map("created_at")
@@ -248,4 +275,34 @@ model ActionLog {
 
   @@index([userId, domain, createdAt])
   @@map("action_logs")
+}
+
+model Memory {
+  id             String         @id @default(uuid())
+  userId         String         @map("user_id")
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memoryType     MemoryType     @map("memory_type")
+  category       MemoryCategory
+  status         MemoryStatus   @default(ACTIVE)
+  content        String         @db.Text
+  summary        String         @db.Text
+  embedding      Unsupported("vector(768)")?
+  entities       Json?
+  confidence     Float          @default(0.8)
+  importance     Float          @default(0.5)
+  source         MemorySource
+  supersededById String?        @map("superseded_by_id")
+  supersededBy   Memory?        @relation("MemorySupersession", fields: [supersededById], references: [id])
+  supersedes     Memory[]       @relation("MemorySupersession")
+  accessCount    Int            @default(0) @map("access_count")
+  lastAccessedAt DateTime?      @map("last_accessed_at")
+  expiresAt      DateTime?      @map("expires_at")
+  sessionId      String?        @map("session_id")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  @@index([userId, status, memoryType])
+  @@index([userId, category, status])
+  @@index([expiresAt])
+  @@map("memories")
 }

@@ -1,0 +1,50 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "lint": "tsc --noEmit",
+    "start": "node dist/index.js",
+    "build:only": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.js --format=esm --sourcemap --packages=external",
+    "build": "prisma migrate deploy && tsc --noEmit && pnpm build:only",
+    "dev:node": "node --watch --enable-source-maps dist/index.js",
+    "dev:tsc": "tsc --watch",
+    "dev:esbuild": "pnpm build:only --watch",
+    "dev": "run-p dev:*",
+    "prisma": "prisma",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@google/genai": "^1.40.0",
+    "@huggingface/transformers": "^3.8.1",
+    "@prisma/adapter-pg": "^7.3.0",
+    "@prisma/client": "^7.5.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.3.1",
+    "helmet": "^8.1.0",
+    "node-cron": "^4.2.1",
+    "pg": "^8.17.2",
+    "sendblue": "^2.1.0",
+    "winston": "^3.19.0",
+    "zod": "^4.3.5"
+  },
+  "devDependencies": {
+    "@prisma/client-runtime-utils": "^7.3.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node-cron": "^3.0.11",
+    "@types/pg": "^8.16.0",
+    "esbuild": "^0.27.2",
+    "npm-run-all": "^4.1.5",
+    "pg-mem": "^3.0.12",
+    "prisma": "^7.5.0",
+    "tsx": "^4.21.0"
+  },
+  "optionalDependencies": {
+    "bufferutil": "^4.1.0"
+  }
+}

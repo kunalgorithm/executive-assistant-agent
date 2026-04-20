@@ -1,0 +1,12 @@
+packages:
+  - web
+  - server
+
+onlyBuiltDependencies:
+  - '@prisma/engines'
+  - bufferutil
+  - esbuild
+  - onnxruntime-node
+  - prisma
+  - protobufjs
+  - sharp

@@ -1,0 +1,37 @@
+{
+  "name": "superconnector",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Cocomo AI",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cocomo-ai/superconnector.git"
+  },
+  "scripts": {
+    "clean": "rimraf \"**/node_modules\"",
+    "fresh": "pnpm clean && pnpm i",
+    "nuke": "rimraf pnpm-lock.yaml && pnpm fresh",
+    "format": "oxfmt --write .",
+    "lint": "oxlint --fix .",
+    "lint:fix": "pnpm lint --fix",
+    "fix": "pnpm lint:fix . && pnpm format",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.9",
+    "globals": "^16.5.0",
+    "husky": "^9.1.7",
+    "jiti": "^2.6.1",
+    "lint-staged": "^16.2.7",
+    "oxfmt": "^0.40.0",
+    "oxlint": "^1.55.0",
+    "rimraf": "^6.1.2"
+  },
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=10",
+    "npm": "please-use-pnpm",
+    "yarn": "please-use-pnpm"
+  },
+  "packageManager": "pnpm@10.28.1"
+}

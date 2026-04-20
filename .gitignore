@@ -1,0 +1,49 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+.env*
+!.envrc
+!.env.example
+!.env.test
+
+server/src/generated
+
+.husky/*
+!.husky/pre-commit
+todo/**
+
+# Snyk Security Extension - AI Rules (auto-generated)
+.github/instructions/snyk_rules.instructions.md
+
+# testing
+server/coverage/**
+web/coverage/**
+web/playwright-report/**
+web/test-results/**
+web/blob-report/**
+
+*.tsbuildinfo
+.hf-cache/

@@ -1,0 +1,139 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
+  binaryTargets   = ["native"]
+  engineType      = "binary"
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [pgvector(map: "vector")] // Enables pgvector
+}
+
+model User {
+  id            String  @id @default(uuid())
+  refId         String  @unique @default(uuid()) @map("ref_id")
+  firstName     String? @map("first_name")
+  lastName      String? @map("last_name")
+  email         String? @unique
+  phoneNumber   String? @unique @map("phone_number")
+  primaryIntent String? @map("primary_intent")
+  status        String  @default("onboarding")
+  substatus     String?
+
+  title     String?
+  bio       String?                     @db.Text
+  tags      String[]                    @default([])
+  embedding Unsupported("vector(768)")?
+
+  timezone      String    @default("America/Los_Angeles")
+  isActive      Boolean   @default(true) @map("is_active")
+  lastMessageAt DateTime? @map("last_message_at")
+
+  sentMessages     ChannelMessage[] @relation("SentChannelMessages")
+  receivedMessages ChannelMessage[] @relation("ReceivedChannelMessages")
+  matchesAsA       Match[]          @relation("UserA")
+  matchesAsB       Match[]          @relation("UserB")
+
+  linkedinUrl  String? @map("linkedin_url")
+  twitterUrl   String? @map("twitter_url")
+  instagramUrl String? @map("instagram_url")
+  websiteUrl   String? @map("website_url")
+
+  adminNotes      String?          @map("admin_notes") @db.Text
+  checkinCount    Int              @default(0) @map("checkin_count")
+  lastCheckinAt   DateTime?        @map("last_checkin_at")
+  lastNudgeAt     DateTime?        @map("last_nudge_at")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  analyticsEvents AnalyticsEvent[]
+
+  @@index([status])
+  @@index([refId])
+  @@index([phoneNumber])
+  @@map("users")
+}
+
+model Match {
+  id      String  @id @default(uuid())
+  userAId String  @map("user_a_id")
+  userA   User    @relation("UserA", fields: [userAId], references: [id])
+  userBId String  @map("user_b_id")
+  userB   User    @relation("UserB", fields: [userBId], references: [id])
+  status  String  @default("pending")
+  score   Float?
+  groupId String? @unique @map("group_id")
+
+  intentScore     Float?  @map("intent_score")
+  similarityScore Float?  @map("similarity_score")
+  matchReason     String? @map("match_reason") @db.Text
+
+  draftMessageA String? @map("draft_message_a") @db.Text
+  draftMessageB String? @map("draft_message_b") @db.Text
+  userAOptedIn  Boolean @default(false) @map("user_a_opted_in")
+  userBOptedIn  Boolean @default(false) @map("user_b_opted_in")
+  userADeclined Boolean @default(false) @map("user_a_declined")
+  userBDeclined Boolean @default(false) @map("user_b_declined")
+
+  revision        DraftRevision?
+  channelMessages ChannelMessage[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([userAId, userBId])
+  @@index([status])
+  @@map("matches")
+}
+
+model ChannelMessage {
+  id            Int       @id @default(autoincrement())
+  fromUserId    String?   @map("from_user_id")
+  fromUser      User?     @relation("SentChannelMessages", fields: [fromUserId], references: [id])
+  toUserId      String?   @map("to_user_id")
+  toUser        User?     @relation("ReceivedChannelMessages", fields: [toUserId], references: [id])
+  matchId       String?   @map("match_id")
+  match         Match?    @relation(fields: [matchId], references: [id])
+  messageType   String    @default("direct") @map("message_type")
+  messageHandle String?   @unique @map("message_handle")
+  content       String?   @db.Text
+  mediaUrl      String?   @map("media_url")
+  sendblueData  Json?     @map("sendblue_data")
+  sentAt        DateTime? @map("sent_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([matchId])
+  @@index([createdAt])
+  @@map("channel_messages")
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(uuid())
+  event     String
+  userId    String?  @map("user_id")
+  user      User?    @relation(fields: [userId], references: [id])
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([event, createdAt])
+  @@index([userId])
+  @@map("analytics_events")
+}
+
+model DraftRevision {
+  id          Int      @id @default(autoincrement())
+  matchId     String   @unique @map("match_id")
+  match       Match    @relation(fields: [matchId], references: [id])
+  aiDraftA    String   @map("ai_draft_a") @db.Text
+  aiDraftB    String   @map("ai_draft_b") @db.Text
+  adminDraftA String?  @map("admin_draft_a") @db.Text
+  adminDraftB String?  @map("admin_draft_b") @db.Text
+  context     Json
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("draft_revisions")
+}

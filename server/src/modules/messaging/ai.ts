@@ -10,6 +10,7 @@ import { safeJsonParse } from '@/utils/json';
 import type { UserModel } from '@/generated/prisma/models/User';
 import { GEMINI_FLASH3_MODEL } from '@/utils/constants';
 import { calendarFunctionDeclarations, dispatchCalendarToolCall } from '@/modules/google/tools';
+import { REMINDER_TOOL_NAMES, dispatchReminderToolCall, reminderFunctionDeclarations } from '@/modules/reminders/tools';
 
 export type ConversationMessage = { role: 'user' | 'model'; content: string };
 
@@ -67,8 +68,10 @@ export async function generateSaylaResponse(
     parts: [{ text: msg.content }],
   }));
 
-  // Only expose calendar tools once OAuth is connected.
-  const tools = connection.calendarConnected ? [{ functionDeclarations: calendarFunctionDeclarations }] : undefined;
+  const functionDeclarations = connection.calendarConnected
+    ? [...calendarFunctionDeclarations, ...reminderFunctionDeclarations]
+    : reminderFunctionDeclarations;
+  const tools = [{ functionDeclarations }];
 
   let rawResponse: string | undefined;
 
@@ -128,10 +131,14 @@ export async function generateSaylaResponse(
 
       const responseParts: Part[] = [];
       for (const fc of functionCalls) {
-        const result = await dispatchCalendarToolCall(user.id, fc.name!, (fc.args ?? {}) as Record<string, unknown>);
+        const name = fc.name!;
+        const toolArgs = (fc.args ?? {}) as Record<string, unknown>;
+        const result = REMINDER_TOOL_NAMES.has(name)
+          ? await dispatchReminderToolCall({ userId: user.id, userTimezone: user.timezone }, name, toolArgs)
+          : await dispatchCalendarToolCall(user.id, name, toolArgs);
         logger.info('[ai] Tool call executed', { userId: user.id, name: fc.name, ok: result.ok });
         responseParts.push({
-          functionResponse: { name: fc.name!, response: result },
+          functionResponse: { name, response: result },
         });
       }
       contents.push({ role: 'user', parts: responseParts });

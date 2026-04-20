@@ -1,12 +1,15 @@
+import type { Content, Part } from '@google/genai';
+
 import { ai } from '@/utils/gemini';
 
-import { SAYLA_SYSTEM_PROMPT, buildConnectionStatusBlock } from './prompts';
+import { SAYLA_SYSTEM_PROMPT, buildConnectionStatusBlock, buildEnvironmentBlock } from './prompts';
 import { pickReactionSchema } from './helpers';
 import { db } from '@/utils/db';
 import { logger } from '@/utils/log';
 import { safeJsonParse } from '@/utils/json';
 import type { UserModel } from '@/generated/prisma/models/User';
 import { GEMINI_FLASH3_MODEL } from '@/utils/constants';
+import { calendarFunctionDeclarations, dispatchCalendarToolCall } from '@/modules/google/tools';
 
 export type ConversationMessage = { role: 'user' | 'model'; content: string };
 
@@ -42,6 +45,9 @@ export type ConnectionState = {
   connectLink: string | null;
 };
 
+// Cap the number of model↔tool round-trips per user turn so a buggy loop can't run unbounded.
+const MAX_TOOL_ROUND_TRIPS = 6;
+
 export async function generateSaylaResponse(
   conversationHistory: ConversationMessage[],
   user: UserModel,
@@ -53,51 +59,86 @@ export async function generateSaylaResponse(
     systemInstruction += `\n\n## Current User\nYou are assisting "${user.firstName}". Reference their name occasionally when it feels natural.`;
   }
 
+  systemInstruction += buildEnvironmentBlock({ timezone: user.timezone });
   systemInstruction += buildConnectionStatusBlock(connection);
 
+  const contents: Content[] = conversationHistory.map((msg) => ({
+    role: msg.role,
+    parts: [{ text: msg.content }],
+  }));
+
+  // Only expose calendar tools once OAuth is connected.
+  const tools = connection.calendarConnected ? [{ functionDeclarations: calendarFunctionDeclarations }] : undefined;
+
   let rawResponse: string | undefined;
+
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_FLASH3_MODEL,
-      config: {
-        systemInstruction,
-        maxOutputTokens: 2000,
-        temperature: 0.7,
-        // Gemini 3 is a reasoning model — thinking tokens count toward maxOutputTokens.
-        // Disable thinking so the whole budget goes to the actual reply.
-        thinkingConfig: { thinkingBudget: 0 },
-      },
-      contents: conversationHistory.map((msg) => ({ role: msg.role, parts: [{ text: msg.content }] })),
-    });
-
-    const finishReason = response.candidates?.[0]?.finishReason;
-    rawResponse = response.text?.trim();
-
-    if (finishReason === 'MAX_TOKENS') {
-      logger.warn('[ai] Response was truncated (hit maxOutputTokens)', {
-        finishReason,
-        userId: user.id,
-        responseLength: rawResponse?.length,
+    for (let i = 0; i < MAX_TOOL_ROUND_TRIPS; i++) {
+      const response = await ai.models.generateContent({
+        model: GEMINI_FLASH3_MODEL,
+        config: {
+          systemInstruction,
+          tools,
+          maxOutputTokens: 2000,
+          temperature: 0.7,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
+        contents,
       });
-    }
 
-    if (!rawResponse) return null;
+      const candidate = response.candidates?.[0];
+      const finishReason = candidate?.finishReason;
+      const modelParts = candidate?.content?.parts ?? [];
 
-    if (finishReason === 'MAX_TOKENS' && rawResponse) {
-      const lastSentenceEnd = Math.max(
-        rawResponse.lastIndexOf('. '),
-        rawResponse.lastIndexOf('! '),
-        rawResponse.lastIndexOf('? '),
-        rawResponse.lastIndexOf('.'),
-        rawResponse.lastIndexOf('!'),
-        rawResponse.lastIndexOf('?'),
-      );
-      if (lastSentenceEnd > rawResponse.length * 0.5) {
-        rawResponse = rawResponse.slice(0, lastSentenceEnd + 1);
+      // Collect any function calls the model wants to make in this turn.
+      const functionCalls = modelParts.filter((p) => p.functionCall).map((p) => p.functionCall!);
+
+      if (functionCalls.length === 0) {
+        rawResponse = response.text?.trim();
+
+        if (finishReason === 'MAX_TOKENS') {
+          logger.warn('[ai] Response truncated (MAX_TOKENS)', {
+            userId: user.id,
+            responseLength: rawResponse?.length,
+          });
+        }
+
+        if (!rawResponse) return null;
+
+        if (finishReason === 'MAX_TOKENS') {
+          const lastSentenceEnd = Math.max(
+            rawResponse.lastIndexOf('. '),
+            rawResponse.lastIndexOf('! '),
+            rawResponse.lastIndexOf('? '),
+            rawResponse.lastIndexOf('.'),
+            rawResponse.lastIndexOf('!'),
+            rawResponse.lastIndexOf('?'),
+          );
+          if (lastSentenceEnd > rawResponse.length * 0.5) {
+            rawResponse = rawResponse.slice(0, lastSentenceEnd + 1);
+          }
+        }
+
+        return rawResponse;
       }
+
+      // Push the model's turn back verbatim (preserving thoughtSignature on functionCall parts —
+      // Gemini 3 requires this when replaying tool calls in history).
+      contents.push({ role: 'model', parts: modelParts });
+
+      const responseParts: Part[] = [];
+      for (const fc of functionCalls) {
+        const result = await dispatchCalendarToolCall(user.id, fc.name!, (fc.args ?? {}) as Record<string, unknown>);
+        logger.info('[ai] Tool call executed', { userId: user.id, name: fc.name, ok: result.ok });
+        responseParts.push({
+          functionResponse: { name: fc.name!, response: result },
+        });
+      }
+      contents.push({ role: 'user', parts: responseParts });
     }
 
-    return rawResponse;
+    logger.warn('[ai] Hit MAX_TOOL_ROUND_TRIPS without producing text', { userId: user.id });
+    return null;
   } catch (error) {
     logger.error('[ai] Failed to generate response', {
       rawResponse,

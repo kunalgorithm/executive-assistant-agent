@@ -1,6 +1,6 @@
 import { ai } from '@/utils/gemini';
 
-import { SAYLA_SYSTEM_PROMPT } from './prompts';
+import { SAYLA_SYSTEM_PROMPT, buildConnectionStatusBlock } from './prompts';
 import { pickReactionSchema } from './helpers';
 import { db } from '@/utils/db';
 import { logger } from '@/utils/log';
@@ -37,15 +37,23 @@ export async function getUserConversation(userId: string) {
   return formatConversationHistory(messages.reverse(), userId);
 }
 
+export type ConnectionState = {
+  calendarConnected: boolean;
+  connectLink: string | null;
+};
+
 export async function generateSaylaResponse(
   conversationHistory: ConversationMessage[],
   user: UserModel,
+  connection: ConnectionState,
 ): Promise<string | null> {
   let systemInstruction = SAYLA_SYSTEM_PROMPT;
 
   if (user.firstName) {
     systemInstruction += `\n\n## Current User\nYou are assisting "${user.firstName}". Reference their name occasionally when it feels natural.`;
   }
+
+  systemInstruction += buildConnectionStatusBlock(connection);
 
   let rawResponse: string | undefined;
   try {

@@ -24,6 +24,17 @@ model User {
   isActive      Boolean   @default(true) @map("is_active")
   lastMessageAt DateTime? @map("last_message_at")
 
+  // Google OAuth — calendar now, gmail later
+  googleEmail                String?   @map("google_email")
+  googleRefreshToken         String?   @map("google_refresh_token")
+  googleAccessToken          String?   @map("google_access_token")
+  googleAccessTokenExpiresAt DateTime? @map("google_access_token_expires_at")
+  calendarConnectedAt        DateTime? @map("calendar_connected_at")
+
+  // One-time magic link for kicking off the OAuth flow from iMessage
+  connectToken          String?   @unique @map("connect_token")
+  connectTokenExpiresAt DateTime? @map("connect_token_expires_at")
+
   sentMessages     ChannelMessage[] @relation("SentChannelMessages")
   receivedMessages ChannelMessage[] @relation("ReceivedChannelMessages")
 

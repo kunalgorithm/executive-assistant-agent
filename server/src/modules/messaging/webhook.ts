@@ -16,8 +16,12 @@ import { getZodErrors } from '@/utils/error';
 import { runExclusive } from '@/utils/locks';
 import { Prisma } from '@/generated/prisma/client';
 import { timezoneFromPhone } from '@/utils/timezone';
+import { issueConnectLink } from '@/modules/google/oauth';
 import { ANALYTICS_EVENTS, trackEvent } from '@/utils/analytics';
 import { pickReaction, generateSaylaResponse, getUserConversation } from './ai';
+import { WELCOME_MESSAGE, CONNECT_LINK_REFRESH_MESSAGE } from './prompts';
+
+const CONNECT_KEYWORD = /^(connect|link|reconnect)$/i;
 
 export async function handleInboundMessageWebhook(req: Request, res: Response) {
   const { data, errors } = getZodErrors(sendblueInboundWebhookSchema, req.body);
@@ -28,7 +32,6 @@ export async function handleInboundMessageWebhook(req: Request, res: Response) {
 
   res.sendStatus(statusCodes.OK);
 
-  // Single-owner lock: reject any number that isn't the configured owner.
   if (env.OWNER_PHONE_NUMBER && data.from_number !== env.OWNER_PHONE_NUMBER) {
     logger.warn('[webhook] Rejected inbound from non-owner number', { fromNumber: data.from_number });
     return;
@@ -62,18 +65,19 @@ async function processInboundMessageAsync(data: SendblueInboundPayload) {
       },
     });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return; // duplicate webhook
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return;
     throw error;
   }
 
   trackEvent(ANALYTICS_EVENTS.inbound_message_received, user?.id ?? undefined);
 
+  let isNewUser = false;
   if (!user) {
-    // First message from the owner creates their user record.
     const timezone = timezoneFromPhone(data.from_number);
     user = await db.user.create({
       data: { timezone, lastMessageAt: new Date(), phoneNumber: data.from_number },
     });
+    isNewUser = true;
     trackEvent(ANALYTICS_EVENTS.user_created_via_sms, user.id, { timezone, fromNumber: data.from_number });
   } else {
     await db.user.update({ where: { id: user.id }, data: { lastMessageAt: new Date() } });
@@ -81,11 +85,26 @@ async function processInboundMessageAsync(data: SendblueInboundPayload) {
 
   if (!user.isActive) return;
 
+  // First-touch onboarding: deterministic welcome + connect link. No AI.
+  if (isNewUser) {
+    const link = await issueConnectLink(user.id);
+    await sendMultipartOutbound(WELCOME_MESSAGE(link), data.from_number, user.id);
+    return;
+  }
+
   if (!data.content || data.content.trim().length === 0) return;
+  const trimmed = data.content.trim();
 
   // Tapback reactions arrive as normal inbound webhooks — ignore them.
-  if (/^(Liked|Loved|Disliked|Laughed at|Emphasized|Questioned) "/.test(data.content.trim())) {
+  if (/^(Liked|Loved|Disliked|Laughed at|Emphasized|Questioned) "/.test(trimmed)) {
     logger.info('[process] Ignoring tapback reaction', { userId: user.id, content: data.content });
+    return;
+  }
+
+  // Explicit "connect" / "link" / "reconnect" — regenerate link, skip AI.
+  if (CONNECT_KEYWORD.test(trimmed)) {
+    const link = await issueConnectLink(user.id);
+    await sendAndSaveOutbound(CONNECT_LINK_REFRESH_MESSAGE(link), data.from_number, user.id);
     return;
   }
 
@@ -102,9 +121,14 @@ async function processInboundMessageAsync(data: SendblueInboundPayload) {
 
   const conversationHistory = await getUserConversation(user.id);
 
+  // Gate: if calendar isn't connected, AI must redirect (not answer calendar questions).
+  // We also regenerate the connect link so the AI can reference it directly.
+  const calendarConnected = user.calendarConnectedAt !== null;
+  const connectLink = calendarConnected ? null : await issueConnectLink(user.id);
+
   await sendTypingIndicator(data.from_number);
 
-  const aiResponse = await generateSaylaResponse(conversationHistory, user);
+  const aiResponse = await generateSaylaResponse(conversationHistory, user, { calendarConnected, connectLink });
   if (!aiResponse) {
     trackEvent(ANALYTICS_EVENTS.ai_response_failed, user.id);
     await sendAndSaveOutbound(

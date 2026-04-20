@@ -11,6 +11,7 @@ import { globalErrorHandlerMiddleware } from '@/utils/error';
 
 import { adminRouter } from '@/modules/admin';
 import { startCronJobs } from '@/modules/cron';
+import { googleAuthRouter } from '@/modules/google';
 import { messagingRouter } from '@/modules/messaging';
 
 const app = express();
@@ -44,6 +45,7 @@ app.get('/', (_req, res) => {
 
 app.use('/api/messaging', messagingRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/auth/google', googleAuthRouter);
 
 app.use(globalErrorHandlerMiddleware);
 

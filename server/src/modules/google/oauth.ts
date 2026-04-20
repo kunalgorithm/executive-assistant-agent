@@ -148,7 +148,10 @@ export async function issueConnectLink(userId: string): Promise<string> {
     data: { connectToken: token, connectTokenExpiresAt: expiresAt },
   });
 
-  return `${env.CLIENT_URL.split(',')[0]!.trim()}/connect?t=${token}`;
+  // Link points at the public web frontend (CLIENT_URL), which hosts /connect.
+  // In local dev, set CLIENT_URL to the deployed staging frontend (ea.getsayla.com)
+  // so the link in iMessage is tappable from the owner's phone.
+  return `${env.CLIENT_URL.split(',')[0]!.trim().replace(/\/$/, '')}/connect?t=${token}`;
 }
 
 export async function findUserByConnectToken(token: string) {

@@ -44,6 +44,27 @@ async function clientForUser(userId: string) {
   return google.calendar({ version: 'v3', auth });
 }
 
+/**
+ * Fetch the owner's timezone from their primary Google Calendar.
+ * This is the authoritative "local time" Google uses for them,
+ * and is what we should use for interpreting relative dates like "today".
+ */
+export async function fetchPrimaryCalendarTimezone(accessToken: string): Promise<string | null> {
+  const auth = new google.auth.OAuth2();
+  auth.setCredentials({ access_token: accessToken });
+  const calendar = google.calendar({ version: 'v3', auth });
+
+  try {
+    const { data } = await calendar.calendars.get({ calendarId: 'primary' });
+    return data.timeZone ?? null;
+  } catch (error) {
+    logger.warn('[calendar] Failed to fetch primary calendar timezone', {
+      error: error instanceof Error ? error.message : error,
+    });
+    return null;
+  }
+}
+
 export type ListEventsArgs = {
   timeMin: string; // ISO 8601
   timeMax: string; // ISO 8601

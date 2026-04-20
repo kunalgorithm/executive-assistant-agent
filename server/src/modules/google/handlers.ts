@@ -7,6 +7,7 @@ import {
   exchangeCodeForTokens,
   findUserByConnectToken,
 } from './oauth';
+import { fetchPrimaryCalendarTimezone } from './calendar';
 import { db } from '@/utils/db';
 import { env } from '@/utils/env';
 import { logger } from '@/utils/log';
@@ -29,7 +30,7 @@ display:flex;align-items:center;justify-content:center;min-height:100dvh;margin:
 }
 
 function webBase(): string {
-  return env.CLIENT_URL.split(',')[0]!.trim();
+  return env.CLIENT_URL.split(',')[0]!.trim().replace(/\/$/, '');
 }
 
 /**
@@ -135,6 +136,10 @@ export async function handleGoogleCallback(req: Request, res: Response) {
   // Preserve the existing refresh token if none came back in this round.
   const refreshTokenToStore = tokens.refreshToken ?? existing.googleRefreshToken;
 
+  // Pull the owner's actual timezone from their Google Calendar — the authoritative answer.
+  // Beats our area-code heuristic, which can be wrong if they moved.
+  const googleTimezone = await fetchPrimaryCalendarTimezone(tokens.accessToken);
+
   await db.user.update({
     where: { id: existing.id },
     data: {
@@ -145,8 +150,16 @@ export async function handleGoogleCallback(req: Request, res: Response) {
       calendarConnectedAt: new Date(),
       connectToken: null,
       connectTokenExpiresAt: null,
+      ...(googleTimezone ? { timezone: googleTimezone } : {}),
     },
   });
+
+  if (googleTimezone) {
+    logger.info('[google-oauth] Synced timezone from Google Calendar', {
+      userId: existing.id,
+      timezone: googleTimezone,
+    });
+  }
 
   if (existing.phoneNumber) {
     sendAndSaveOutbound(CALENDAR_CONNECTED_MESSAGE, existing.phoneNumber, existing.id).catch((err) =>

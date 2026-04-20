@@ -8,7 +8,6 @@ import { ErrorBoundary } from '@/components/errorBoundary';
 
 const indexPage = lazy(() => import('@/pages/index'));
 const adminPage = lazy(() => import('@/pages/admin'));
-const headOfGrowthPage = lazy(() => import('@/pages/jobs/head-of-growth'));
 
 export function App() {
   return (
@@ -20,7 +19,6 @@ export function App() {
               <Routes>
                 <Route path="/" Component={indexPage} />
                 <Route path="/admin" Component={adminPage} />
-                <Route path="/jobs/head-of-growth" Component={headOfGrowthPage} />
               </Routes>
             </BrowserRouter>
           </NuqsAdapter>

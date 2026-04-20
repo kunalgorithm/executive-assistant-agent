@@ -10,6 +10,7 @@ import { globalLimiter } from '@/utils/rateLimit';
 import { globalErrorHandlerMiddleware } from '@/utils/error';
 
 import { adminRouter } from '@/modules/admin';
+import { connectorsRouter } from '@/modules/connectors';
 import { startCronJobs } from '@/modules/cron';
 import { messagingRouter } from '@/modules/messaging';
 
@@ -44,6 +45,7 @@ app.get('/', (_req, res) => {
 
 app.use('/api/messaging', messagingRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/connectors', connectorsRouter);
 
 app.use(globalErrorHandlerMiddleware);
 

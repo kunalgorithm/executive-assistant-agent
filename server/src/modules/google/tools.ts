@@ -2,6 +2,7 @@ import type { FunctionDeclaration } from '@google/genai';
 
 import { logger } from '@/utils/log';
 import { listEvents, createEvent, updateEvent, deleteEvent } from './calendar';
+import { searchContacts } from './contacts';
 
 /**
  * Function declarations Gemini will choose from. We use parametersJsonSchema
@@ -108,6 +109,31 @@ export const calendarFunctionDeclarations: FunctionDeclaration[] = [
 
 export const CALENDAR_TOOL_NAMES = new Set(calendarFunctionDeclarations.map((d) => d.name!));
 
+export const contactsFunctionDeclarations: FunctionDeclaration[] = [
+  {
+    name: 'search_contacts',
+    description:
+      "Search the owner's Google Contacts by name, email, or keyword. Use this to look up a person's phone number, email address, or employer. Returns up to 10 matching contacts.",
+    parametersJsonSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Name, email, or keyword to search for. E.g. "John Smith" or "Acme Corp".',
+        },
+        maxResults: {
+          type: 'integer',
+          description: 'Optional max contacts to return, default 10, capped at 10.',
+        },
+      },
+      required: ['query'],
+      additionalProperties: false,
+    },
+  },
+];
+
+export const CONTACTS_TOOL_NAMES = new Set(contactsFunctionDeclarations.map((d) => d.name!));
+
 /**
  * Run a function call against the user's calendar and return a serializable result.
  * Errors are returned in-band so the model can explain them to the owner.
@@ -144,6 +170,31 @@ export async function dispatchCalendarToolCall(
     }
   } catch (error) {
     logger.error('[calendar-tools] Dispatcher crashed', {
+      userId,
+      name,
+      error: error instanceof Error ? error.message : error,
+    });
+    return { ok: false, error: 'dispatcher_crash' };
+  }
+}
+
+export async function dispatchContactsToolCall(
+  userId: string,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  try {
+    switch (name) {
+      case 'search_contacts':
+        return (await searchContacts(userId, args as Parameters<typeof searchContacts>[1])) as unknown as Record<
+          string,
+          unknown
+        >;
+      default:
+        return { ok: false, error: `unknown_tool:${name}` };
+    }
+  } catch (error) {
+    logger.error('[contacts-tools] Dispatcher crashed', {
       userId,
       name,
       error: error instanceof Error ? error.message : error,

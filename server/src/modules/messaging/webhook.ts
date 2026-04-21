@@ -124,11 +124,17 @@ async function processInboundMessageAsync(data: SendblueInboundPayload) {
   // Gate: if calendar isn't connected, AI must redirect (not answer calendar questions).
   // We also regenerate the connect link so the AI can reference it directly.
   const calendarConnected = user.calendarConnectedAt !== null;
-  const connectLink = calendarConnected ? null : await issueConnectLink(user.id);
+  const contactsConnected = user.contactsConnectedAt !== null;
+  const googleConnected = calendarConnected && contactsConnected;
+  const connectLink = googleConnected ? null : await issueConnectLink(user.id);
 
   await sendTypingIndicator(data.from_number);
 
-  const aiResponse = await generateSaylaResponse(conversationHistory, user, { calendarConnected, connectLink });
+  const aiResponse = await generateSaylaResponse(conversationHistory, user, {
+    calendarConnected,
+    contactsConnected,
+    connectLink,
+  });
   if (!aiResponse) {
     trackEvent(ANALYTICS_EVENTS.ai_response_failed, user.id);
     await sendAndSaveOutbound(

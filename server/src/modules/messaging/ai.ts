@@ -9,7 +9,13 @@ import { logger } from '@/utils/log';
 import { safeJsonParse } from '@/utils/json';
 import type { UserModel } from '@/generated/prisma/models/User';
 import { GEMINI_FLASH3_MODEL } from '@/utils/constants';
-import { calendarFunctionDeclarations, dispatchCalendarToolCall } from '@/modules/google/tools';
+import {
+  calendarFunctionDeclarations,
+  contactsFunctionDeclarations,
+  CALENDAR_TOOL_NAMES,
+  dispatchCalendarToolCall,
+  dispatchContactsToolCall,
+} from '@/modules/google/tools';
 
 export type ConversationMessage = { role: 'user' | 'model'; content: string };
 
@@ -42,6 +48,7 @@ export async function getUserConversation(userId: string) {
 
 export type ConnectionState = {
   calendarConnected: boolean;
+  contactsConnected: boolean;
   connectLink: string | null;
 };
 
@@ -67,8 +74,12 @@ export async function generateSaylaResponse(
     parts: [{ text: msg.content }],
   }));
 
-  // Only expose calendar tools once OAuth is connected.
-  const tools = connection.calendarConnected ? [{ functionDeclarations: calendarFunctionDeclarations }] : undefined;
+  // Assemble tool declarations based on what's connected.
+  const functionDeclarations = [
+    ...(connection.calendarConnected ? calendarFunctionDeclarations : []),
+    ...(connection.contactsConnected ? contactsFunctionDeclarations : []),
+  ];
+  const tools = functionDeclarations.length > 0 ? [{ functionDeclarations }] : undefined;
 
   let rawResponse: string | undefined;
 
@@ -128,7 +139,8 @@ export async function generateSaylaResponse(
 
       const responseParts: Part[] = [];
       for (const fc of functionCalls) {
-        const result = await dispatchCalendarToolCall(user.id, fc.name!, (fc.args ?? {}) as Record<string, unknown>);
+        const dispatch = CALENDAR_TOOL_NAMES.has(fc.name!) ? dispatchCalendarToolCall : dispatchContactsToolCall;
+        const result = await dispatch(user.id, fc.name!, (fc.args ?? {}) as Record<string, unknown>);
         logger.info('[ai] Tool call executed', { userId: user.id, name: fc.name, ok: result.ok });
         responseParts.push({
           functionResponse: { name: fc.name!, response: result },

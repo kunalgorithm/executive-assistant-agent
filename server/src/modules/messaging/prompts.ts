@@ -63,17 +63,26 @@ export function buildEnvironmentBlock(opts: { timezone: string }): string {
 The owner's timezone is **${opts.timezone}** — interpret all relative dates ("today", "tomorrow", "this week", "next tuesday afternoon") in that timezone, and format ISO datetimes you pass to tools with the correct offset for that zone.`;
 }
 
-export function buildConnectionStatusBlock(opts: { calendarConnected: boolean; connectLink: string | null }): string {
+export function buildConnectionStatusBlock(opts: {
+  calendarConnected: boolean;
+  contactsConnected: boolean;
+  connectLink: string | null;
+}): string {
   const calendar = opts.calendarConnected
     ? `- Google Calendar: **CONNECTED and tools are LIVE**. You may call list_calendar_events, create_calendar_event, update_calendar_event, and delete_calendar_event. For any schedule/availability question, CALL list_calendar_events with an appropriate time window. For writes, see the Write Actions section above — propose in text first, wait for explicit confirmation.`
     : '- Google Calendar: NOT CONNECTED. You cannot answer any calendar question. If asked about their schedule or events, redirect them to tap the connect link below.';
 
+  const contacts = opts.contactsConnected
+    ? `- Google Contacts: **CONNECTED and tools are LIVE**. You may call search_contacts to look up a person's phone number, email, or employer. ALWAYS call search_contacts when asked for contact details — never guess or recall from memory.`
+    : '- Google Contacts: NOT CONNECTED. You cannot look up contact information.';
+
   const email =
     '- Gmail: NOT CONNECTED (email support is coming in a future update). If asked about email, say email support is coming soon. Do NOT pretend to read or draft any email.';
 
-  let block = `\n\n## Current Connection State\n${calendar}\n${email}`;
+  let block = `\n\n## Current Connection State\n${calendar}\n${contacts}\n${email}`;
 
-  if (!opts.calendarConnected && opts.connectLink) {
+  const googleConnected = opts.calendarConnected && opts.contactsConnected;
+  if (!googleConnected && opts.connectLink) {
     block += `\n\n## Connect Link\nIf you need to share the connect link again, use exactly this URL (do NOT modify it, do NOT invent a different one):\n${opts.connectLink}`;
   }
 

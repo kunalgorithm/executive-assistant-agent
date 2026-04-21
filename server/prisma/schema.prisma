@@ -30,6 +30,7 @@ model User {
   googleAccessToken          String?   @map("google_access_token")
   googleAccessTokenExpiresAt DateTime? @map("google_access_token_expires_at")
   calendarConnectedAt        DateTime? @map("calendar_connected_at")
+  contactsConnectedAt        DateTime? @map("contacts_connected_at")
 
   // One-time magic link for kicking off the OAuth flow from iMessage
   connectToken          String?   @unique @map("connect_token")

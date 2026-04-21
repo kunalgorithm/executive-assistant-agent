@@ -8,7 +8,7 @@
     "lint": "tsc --noEmit",
     "start": "node dist/index.js",
     "build:only": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.js --format=esm --sourcemap --packages=external",
-    "build": "prisma migrate deploy && tsc --noEmit && pnpm build:only",
+    "build": "prisma generate && prisma migrate deploy && pnpm build:only",
     "dev:node": "node --watch --enable-source-maps dist/index.js",
     "dev:tsc": "tsc --watch",
     "dev:esbuild": "pnpm build:only --watch",

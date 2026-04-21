@@ -135,6 +135,7 @@ async function processInboundMessageAsync(data: SendblueInboundPayload) {
     calendarConnected,
     contactsConnected,
     tasksConnected,
+    restaurantsAvailable: !!env.GOOGLE_MAPS_API_KEY,
     connectLink,
   });
   if (!aiResponse) {

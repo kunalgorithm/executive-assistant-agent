@@ -30,6 +30,9 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REDIRECT_URI: z.string().optional(),
 
+  // Google Places API (New) — server-side key for restaurant search
+  GOOGLE_MAPS_API_KEY: z.string().optional(),
+
   // Single-owner lock: only this number is allowed to talk to the agent.
   OWNER_PHONE_NUMBER: z.string().optional(),
 

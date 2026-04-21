@@ -4,6 +4,7 @@ import { logger } from '@/utils/log';
 import { listEvents, createEvent, updateEvent, deleteEvent } from './calendar';
 import { searchContacts } from './contacts';
 import { listTasks, createTask, updateTask, deleteTask } from './tasks';
+import { searchRestaurants } from './places';
 
 /**
  * Function declarations Gemini will choose from. We use parametersJsonSchema
@@ -210,6 +211,32 @@ export const tasksFunctionDeclarations: FunctionDeclaration[] = [
 
 export const TASKS_TOOL_NAMES = new Set(tasksFunctionDeclarations.map((d) => d.name!));
 
+export const restaurantFunctionDeclarations: FunctionDeclaration[] = [
+  {
+    name: 'search_restaurants',
+    description:
+      'Search for restaurants using Google Places. Use this for any request about finding a place to eat, checking if a restaurant is open, or getting a booking link. Returns up to 5 results with ratings, hours, price level, phone number, website, and a Google Maps link the owner can tap to book via Reserve with Google.',
+    parametersJsonSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description:
+            'Natural language search query including cuisine, location, and any constraints. E.g. "Italian restaurant in SoHo NYC open Saturday at 8pm" or "best sushi near Chelsea Manhattan".',
+        },
+        maxResults: {
+          type: 'integer',
+          description: 'Optional max results to return, default 5, capped at 5.',
+        },
+      },
+      required: ['query'],
+      additionalProperties: false,
+    },
+  },
+];
+
+export const RESTAURANT_TOOL_NAMES = new Set(restaurantFunctionDeclarations.map((d) => d.name!));
+
 /**
  * Run a function call against the user's calendar and return a serializable result.
  * Errors are returned in-band so the model can explain them to the owner.
@@ -309,6 +336,30 @@ export async function dispatchTasksToolCall(
   } catch (error) {
     logger.error('[tasks-tools] Dispatcher crashed', {
       userId,
+      name,
+      error: error instanceof Error ? error.message : error,
+    });
+    return { ok: false, error: 'dispatcher_crash' };
+  }
+}
+
+export async function dispatchRestaurantToolCall(
+  _userId: string,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  try {
+    switch (name) {
+      case 'search_restaurants':
+        return (await searchRestaurants(args as Parameters<typeof searchRestaurants>[0])) as unknown as Record<
+          string,
+          unknown
+        >;
+      default:
+        return { ok: false, error: `unknown_tool:${name}` };
+    }
+  } catch (error) {
+    logger.error('[restaurant-tools] Dispatcher crashed', {
       name,
       error: error instanceof Error ? error.message : error,
     });

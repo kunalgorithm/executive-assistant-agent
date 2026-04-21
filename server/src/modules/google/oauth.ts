@@ -6,11 +6,18 @@ import { env } from '@/utils/env';
 import { logger } from '@/utils/log';
 
 /**
- * Full calendar scope — read + write. Owner consents once, server can
- * create, reschedule, and cancel events on their behalf via tool calls.
+ * All Google scopes requested in the single consent flow.
+ * Calendar: full read/write for events.
+ * Contacts: read-only via People API.
  * Gmail scopes are deliberately not requested yet.
  */
-export const CALENDAR_SCOPES = ['openid', 'email', 'profile', 'https://www.googleapis.com/auth/calendar'];
+export const CALENDAR_SCOPES = [
+  'openid',
+  'email',
+  'profile',
+  'https://www.googleapis.com/auth/calendar',
+  'https://www.googleapis.com/auth/contacts.readonly',
+];
 
 export type GoogleCredentialsMissingError = { kind: 'missing-google-env' };
 

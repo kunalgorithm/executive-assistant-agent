@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Calendar, CheckCircle2, BookUser } from 'lucide-react';
+import { Calendar, CheckCircle2, BookUser, ListTodo } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -52,8 +52,8 @@ export default function ConnectPage() {
       <h1 className="text-3xl font-extrabold tracking-tight leading-tight mb-4">connect your google account</h1>
 
       <p className="text-muted-foreground leading-relaxed mb-8">
-        i'll be able to manage your calendar and look up your contacts. you'll still confirm before anything gets
-        written. gmail comes in a future update.
+        i'll be able to manage your calendar, look up your contacts, and manage your tasks. you'll still confirm before
+        anything gets written. gmail comes in a future update.
       </p>
 
       <ul className="space-y-2 mb-10">
@@ -64,6 +64,10 @@ export default function ConnectPage() {
         <li className="flex items-start gap-3 text-sm text-muted-foreground">
           <BookUser className="w-4 h-4 mt-0.5 text-primary shrink-0" />
           <span>read-only access to your contacts</span>
+        </li>
+        <li className="flex items-start gap-3 text-sm text-muted-foreground">
+          <ListTodo className="w-4 h-4 mt-0.5 text-primary shrink-0" />
+          <span>read and write google tasks</span>
         </li>
         <li className="flex items-start gap-3 text-sm text-muted-foreground">
           <CheckCircle2 className="w-4 h-4 mt-0.5 text-primary shrink-0" />

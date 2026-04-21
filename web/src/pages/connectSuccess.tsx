@@ -12,7 +12,8 @@ export default function ConnectSuccessPage() {
           you're all set. head back to iMessage and try asking{' '}
           <span className="text-foreground">"what's on today?"</span>,{' '}
           <span className="text-foreground">"am i free tomorrow afternoon?"</span>, or{' '}
-          <span className="text-foreground">"what's john's email?"</span>
+          <span className="text-foreground">"what's john's email?"</span>, or{' '}
+          <span className="text-foreground">"what's on my task list?"</span>
         </p>
 
         <p className="text-xs text-muted-foreground">you can close this tab.</p>

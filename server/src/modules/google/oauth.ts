@@ -9,6 +9,7 @@ import { logger } from '@/utils/log';
  * All Google scopes requested in the single consent flow.
  * Calendar: full read/write for events.
  * Contacts: read-only via People API.
+ * Tasks: full read/write for Google Tasks.
  * Gmail scopes are deliberately not requested yet.
  */
 export const CALENDAR_SCOPES = [
@@ -17,6 +18,7 @@ export const CALENDAR_SCOPES = [
   'profile',
   'https://www.googleapis.com/auth/calendar',
   'https://www.googleapis.com/auth/contacts.readonly',
+  'https://www.googleapis.com/auth/tasks',
 ];
 
 export type GoogleCredentialsMissingError = { kind: 'missing-google-env' };

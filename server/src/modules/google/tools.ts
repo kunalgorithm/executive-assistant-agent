@@ -3,6 +3,7 @@ import type { FunctionDeclaration } from '@google/genai';
 import { logger } from '@/utils/log';
 import { listEvents, createEvent, updateEvent, deleteEvent } from './calendar';
 import { searchContacts } from './contacts';
+import { listTasks, createTask, updateTask, deleteTask } from './tasks';
 
 /**
  * Function declarations Gemini will choose from. We use parametersJsonSchema
@@ -134,6 +135,81 @@ export const contactsFunctionDeclarations: FunctionDeclaration[] = [
 
 export const CONTACTS_TOOL_NAMES = new Set(contactsFunctionDeclarations.map((d) => d.name!));
 
+export const tasksFunctionDeclarations: FunctionDeclaration[] = [
+  {
+    name: 'list_tasks',
+    description:
+      "List tasks from the owner's default Google Tasks list. Use this for any question about their to-dos or task list. Returns open tasks by default.",
+    parametersJsonSchema: {
+      type: 'object',
+      properties: {
+        includeCompleted: {
+          type: 'boolean',
+          description: 'Set to true to include completed tasks. Defaults to false (open tasks only).',
+        },
+        maxResults: {
+          type: 'integer',
+          description: 'Optional max tasks to return, default 20, capped at 20.',
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'create_task',
+    description:
+      "Add a new task to the owner's default Google Tasks list. Only call AFTER the owner has explicitly confirmed the task details.",
+    parametersJsonSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Task title.' },
+        notes: { type: 'string', description: 'Optional notes or description.' },
+        due: {
+          type: 'string',
+          description: 'Optional due date as RFC 3339 UTC datetime, e.g. "2026-04-22T00:00:00.000Z".',
+        },
+      },
+      required: ['title'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'update_task',
+    description:
+      'Update an existing task — rename it, change its due date, add notes, or mark it complete/incomplete. Only call AFTER the owner has explicitly confirmed the change.',
+    parametersJsonSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string', description: 'The task id from a prior list_tasks result.' },
+        title: { type: 'string', description: 'New title.' },
+        notes: { type: 'string', description: 'New notes.' },
+        due: { type: 'string', description: 'New due date as RFC 3339 UTC datetime.' },
+        status: {
+          type: 'string',
+          enum: ['needsAction', 'completed'],
+          description: 'Set to "completed" to mark done, "needsAction" to reopen.',
+        },
+      },
+      required: ['taskId'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'delete_task',
+    description: 'Permanently delete a task. Only call AFTER the owner has explicitly confirmed the deletion.',
+    parametersJsonSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string', description: 'The task id from a prior list_tasks result.' },
+      },
+      required: ['taskId'],
+      additionalProperties: false,
+    },
+  },
+];
+
+export const TASKS_TOOL_NAMES = new Set(tasksFunctionDeclarations.map((d) => d.name!));
+
 /**
  * Run a function call against the user's calendar and return a serializable result.
  * Errors are returned in-band so the model can explain them to the owner.
@@ -195,6 +271,43 @@ export async function dispatchContactsToolCall(
     }
   } catch (error) {
     logger.error('[contacts-tools] Dispatcher crashed', {
+      userId,
+      name,
+      error: error instanceof Error ? error.message : error,
+    });
+    return { ok: false, error: 'dispatcher_crash' };
+  }
+}
+
+export async function dispatchTasksToolCall(
+  userId: string,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  try {
+    switch (name) {
+      case 'list_tasks':
+        return (await listTasks(userId, args as Parameters<typeof listTasks>[1])) as unknown as Record<string, unknown>;
+      case 'create_task':
+        return (await createTask(userId, args as Parameters<typeof createTask>[1])) as unknown as Record<
+          string,
+          unknown
+        >;
+      case 'update_task':
+        return (await updateTask(userId, args as Parameters<typeof updateTask>[1])) as unknown as Record<
+          string,
+          unknown
+        >;
+      case 'delete_task':
+        return (await deleteTask(userId, args as Parameters<typeof deleteTask>[1])) as unknown as Record<
+          string,
+          unknown
+        >;
+      default:
+        return { ok: false, error: `unknown_tool:${name}` };
+    }
+  } catch (error) {
+    logger.error('[tasks-tools] Dispatcher crashed', {
       userId,
       name,
       error: error instanceof Error ? error.message : error,

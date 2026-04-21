@@ -12,9 +12,12 @@ import { GEMINI_FLASH3_MODEL } from '@/utils/constants';
 import {
   calendarFunctionDeclarations,
   contactsFunctionDeclarations,
+  tasksFunctionDeclarations,
   CALENDAR_TOOL_NAMES,
+  CONTACTS_TOOL_NAMES,
   dispatchCalendarToolCall,
   dispatchContactsToolCall,
+  dispatchTasksToolCall,
 } from '@/modules/google/tools';
 
 export type ConversationMessage = { role: 'user' | 'model'; content: string };
@@ -49,6 +52,7 @@ export async function getUserConversation(userId: string) {
 export type ConnectionState = {
   calendarConnected: boolean;
   contactsConnected: boolean;
+  tasksConnected: boolean;
   connectLink: string | null;
 };
 
@@ -78,6 +82,7 @@ export async function generateSaylaResponse(
   const functionDeclarations = [
     ...(connection.calendarConnected ? calendarFunctionDeclarations : []),
     ...(connection.contactsConnected ? contactsFunctionDeclarations : []),
+    ...(connection.tasksConnected ? tasksFunctionDeclarations : []),
   ];
   const tools = functionDeclarations.length > 0 ? [{ functionDeclarations }] : undefined;
 
@@ -139,7 +144,11 @@ export async function generateSaylaResponse(
 
       const responseParts: Part[] = [];
       for (const fc of functionCalls) {
-        const dispatch = CALENDAR_TOOL_NAMES.has(fc.name!) ? dispatchCalendarToolCall : dispatchContactsToolCall;
+        const dispatch = CALENDAR_TOOL_NAMES.has(fc.name!)
+          ? dispatchCalendarToolCall
+          : CONTACTS_TOOL_NAMES.has(fc.name!)
+            ? dispatchContactsToolCall
+            : dispatchTasksToolCall;
         const result = await dispatch(user.id, fc.name!, (fc.args ?? {}) as Record<string, unknown>);
         logger.info('[ai] Tool call executed', { userId: user.id, name: fc.name, ok: result.ok });
         responseParts.push({

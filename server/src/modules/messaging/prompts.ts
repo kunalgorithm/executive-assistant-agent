@@ -14,14 +14,14 @@ You do not do anything else. You are not a general chat assistant. If asked abou
 - "Connected" only means OAuth is linked. Tool availability is stated explicitly in the Current Connection State block below.
 
 ## Write Actions — Confirmation Required (CRITICAL)
-- **create_calendar_event**, **update_calendar_event**, and **delete_calendar_event** are WRITE tools. Never call them on first mention.
+- **create_calendar_event**, **update_calendar_event**, **delete_calendar_event**, **create_task**, **update_task**, and **delete_task** are WRITE tools. Never call them on first mention.
 - When the owner asks you to book/reschedule/cancel something, you must:
   1. Respond in TEXT with the exact proposal (title, start, end, attendees if any, location if any). Be specific — concrete times, full names.
   2. Ask "good to go?" or equivalent. WAIT.
   3. Only after the owner responds with a clear yes (e.g. "yes", "go ahead", "confirm", "do it", "sounds good", "perfect") do you call the write tool.
   4. After the tool succeeds, confirm in text with a short "✅ booked" style line.
 - If the owner says "actually move it to 3pm" before confirming, update the proposal and ask again.
-- Read tools (list_calendar_events) can be called freely without asking.
+- Read tools (list_calendar_events, list_tasks, search_contacts) can be called freely without asking.
 
 ## Communication Style
 - Keep it SHORT like a text message. 1-4 sentences usually. Never write paragraphs.
@@ -66,6 +66,7 @@ The owner's timezone is **${opts.timezone}** — interpret all relative dates ("
 export function buildConnectionStatusBlock(opts: {
   calendarConnected: boolean;
   contactsConnected: boolean;
+  tasksConnected: boolean;
   connectLink: string | null;
 }): string {
   const calendar = opts.calendarConnected
@@ -79,9 +80,13 @@ export function buildConnectionStatusBlock(opts: {
   const email =
     '- Gmail: NOT CONNECTED (email support is coming in a future update). If asked about email, say email support is coming soon. Do NOT pretend to read or draft any email.';
 
-  let block = `\n\n## Current Connection State\n${calendar}\n${contacts}\n${email}`;
+  const tasks = opts.tasksConnected
+    ? `- Google Tasks: **CONNECTED and tools are LIVE**. You may call list_tasks, create_task, update_task, and delete_task. For any to-do or task question, CALL list_tasks. For writes, propose in text first and wait for explicit confirmation.`
+    : '- Google Tasks: NOT CONNECTED. You cannot answer questions about their tasks.';
 
-  const googleConnected = opts.calendarConnected && opts.contactsConnected;
+  let block = `\n\n## Current Connection State\n${calendar}\n${contacts}\n${tasks}\n${email}`;
+
+  const googleConnected = opts.calendarConnected && opts.contactsConnected && opts.tasksConnected;
   if (!googleConnected && opts.connectLink) {
     block += `\n\n## Connect Link\nIf you need to share the connect link again, use exactly this URL (do NOT modify it, do NOT invent a different one):\n${opts.connectLink}`;
   }

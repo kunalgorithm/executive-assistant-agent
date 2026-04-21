@@ -125,7 +125,8 @@ async function processInboundMessageAsync(data: SendblueInboundPayload) {
   // We also regenerate the connect link so the AI can reference it directly.
   const calendarConnected = user.calendarConnectedAt !== null;
   const contactsConnected = user.contactsConnectedAt !== null;
-  const googleConnected = calendarConnected && contactsConnected;
+  const tasksConnected = user.tasksConnectedAt !== null;
+  const googleConnected = calendarConnected && contactsConnected && tasksConnected;
   const connectLink = googleConnected ? null : await issueConnectLink(user.id);
 
   await sendTypingIndicator(data.from_number);
@@ -133,6 +134,7 @@ async function processInboundMessageAsync(data: SendblueInboundPayload) {
   const aiResponse = await generateSaylaResponse(conversationHistory, user, {
     calendarConnected,
     contactsConnected,
+    tasksConnected,
     connectLink,
   });
   if (!aiResponse) {

@@ -12,10 +12,18 @@ When you merge a PR or push a non-trivial commit, add a bullet to the latest dat
 
 ## 2026-04-20
 
+### Added
+
+- **iMessage-native reminders** — new `reminders` module with `create_reminder`, `list_reminders`, `update_reminder`, `cancel_reminder` tools exposed to Gemini. Cron job runs every minute to dispatch due reminders via SendBlue. Supports one-off and recurring (e.g. yearly birthdays), plus categories for birthdays, conflicts, and busy windows. Analytics events added. ([#2](https://github.com/kunalgorithm/executive-assistant-agent/pull/2))
+
 ### Changed
 
 - **Contact search rewritten for fuzzy/first-name matching.** Replaced Google's `people.searchContacts` (opaque, cold-start empty-result quirks) with a paginated `people.connections.list` fetch + in-memory scored matching (5-min cache per user). Partial names, first-name-only, email fragments, and phone digits all match. Results ranked by match quality (exact → prefix → substring).
 - **Write confirmation rules relaxed for solo events.** Calendar events without attendees and all task writes now execute immediately (no "good to go?" roundtrip) when required details are present. Events with attendees still require explicit confirmation — invites go to real humans. ([`58c566a`](https://github.com/kunalgorithm/executive-assistant-agent/commit/58c566a))
+
+### Fixed
+
+- **Server build script no longer silently skips esbuild on Render.** `tsc --noEmit` lived in the web package, not the server's devDependencies — on isolated installs it was failing silently and the bundle never rebuilt, so deployed code stayed stale. Build now runs `prisma generate` explicitly and skips the typecheck (lint script owns that). ([#6](https://github.com/kunalgorithm/executive-assistant-agent/pull/6))
 
 ### Added
 

@@ -151,5 +151,13 @@ i'll confirm here once it's done.`;
 export const CONNECT_LINK_REFRESH_MESSAGE = (connectLink: string) =>
   `here's a fresh connect link — this one is good for the next hour:\n${connectLink}`;
 
-export const CALENDAR_CONNECTED_MESSAGE =
-  "calendar is hooked up ✅ try asking me 'what's on my calendar today?' or 'any unread emails this morning?'";
+export const CALENDAR_CONNECTED_MESSAGE = `all hooked up ✅ here's what i can help with now:
+
+- calendar — "what's on today?", "book focus 4-5 tomorrow", "move my 3pm to friday"
+- email (read-only) — "any unread from priya this week?", "summarize the latest from my bank"
+- tasks — "what's on my list?", "add: renew passport"
+- contacts — "what's sandhini's number?"
+- reminders — "remind me tomorrow at 9 to call mom", "remind me on my wife's birthday every year"
+- restaurants — "find a good italian spot in soho open saturday night"
+
+just text me naturally — i'll figure it out.`;

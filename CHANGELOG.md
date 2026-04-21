@@ -12,6 +12,10 @@ When you merge a PR or push a non-trivial commit, add a bullet to the latest dat
 
 ## 2026-04-20
 
+### Changed
+
+- **Write confirmation rules relaxed for solo events.** Calendar events without attendees and all task writes now execute immediately (no "good to go?" roundtrip) when required details are present. Events with attendees still require explicit confirmation — invites go to real humans. ([`58c566a`](https://github.com/kunalgorithm/executive-assistant-agent/commit/58c566a))
+
 ### Added
 
 - **Restaurant search tool** — `search_restaurants` exposed to Gemini, backed by Google Places API (New). Server-side API key (`GOOGLE_MAPS_API_KEY`), no per-user OAuth. Returns name, rating, price level, hours, phone, and a Google Maps URL the owner can tap to book via Reserve with Google. ([#5](https://github.com/kunalgorithm/executive-assistant-agent/pull/5))

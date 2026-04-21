@@ -14,6 +14,7 @@ When you merge a PR or push a non-trivial commit, add a bullet to the latest dat
 
 ### Changed
 
+- **Contact search rewritten for fuzzy/first-name matching.** Replaced Google's `people.searchContacts` (opaque, cold-start empty-result quirks) with a paginated `people.connections.list` fetch + in-memory scored matching (5-min cache per user). Partial names, first-name-only, email fragments, and phone digits all match. Results ranked by match quality (exact → prefix → substring).
 - **Write confirmation rules relaxed for solo events.** Calendar events without attendees and all task writes now execute immediately (no "good to go?" roundtrip) when required details are present. Events with attendees still require explicit confirmation — invites go to real humans. ([`58c566a`](https://github.com/kunalgorithm/executive-assistant-agent/commit/58c566a))
 
 ### Added

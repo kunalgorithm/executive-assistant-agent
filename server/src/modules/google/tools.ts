@@ -115,13 +115,14 @@ export const contactsFunctionDeclarations: FunctionDeclaration[] = [
   {
     name: 'search_contacts',
     description:
-      "Search the owner's Google Contacts by name, email, or keyword. Use this to look up a person's phone number, email address, or employer. Returns up to 10 matching contacts.",
+      'Search the owner\'s Google Contacts by name, email, phone, or company. Partial matches work — passing just a first name (e.g. "priya"), a fragment ("kum"), or an email handle ("priya@") all return matching contacts. Returns up to 10 matches ranked by how well they match. Use this to look up a person\'s phone number, email, or employer.',
     parametersJsonSchema: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
-          description: 'Name, email, or keyword to search for. E.g. "John Smith" or "Acme Corp".',
+          description:
+            'What to search for. Can be a first name, last name, partial name, full name, email (or email fragment), company name, or phone number digits. Case-insensitive. Examples: "priya", "kumar", "priya kumar", "@acme.com", "415555".',
         },
         maxResults: {
           type: 'integer',

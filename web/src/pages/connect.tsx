@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Calendar, CheckCircle2 } from 'lucide-react';
+import { Calendar, CheckCircle2, BookUser, ListTodo } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -49,17 +49,25 @@ export default function ConnectPage() {
     <ConnectLayout>
       <p className="text-xs font-semibold text-primary uppercase tracking-[0.25em] mb-5">step 1 of 1</p>
 
-      <h1 className="text-3xl font-extrabold tracking-tight leading-tight mb-4">connect your google calendar</h1>
+      <h1 className="text-3xl font-extrabold tracking-tight leading-tight mb-4">connect your google account</h1>
 
       <p className="text-muted-foreground leading-relaxed mb-8">
-        i'll be able to read your schedule, create events, reschedule, and flag conflicts. you'll still confirm before
+        i'll be able to manage your calendar, look up your contacts, and manage your tasks. you'll still confirm before
         anything gets written. gmail comes in a future update.
       </p>
 
       <ul className="space-y-2 mb-10">
         <li className="flex items-start gap-3 text-sm text-muted-foreground">
-          <CheckCircle2 className="w-4 h-4 mt-0.5 text-primary shrink-0" />
+          <Calendar className="w-4 h-4 mt-0.5 text-primary shrink-0" />
           <span>read and write calendar events</span>
+        </li>
+        <li className="flex items-start gap-3 text-sm text-muted-foreground">
+          <BookUser className="w-4 h-4 mt-0.5 text-primary shrink-0" />
+          <span>read-only access to your contacts</span>
+        </li>
+        <li className="flex items-start gap-3 text-sm text-muted-foreground">
+          <ListTodo className="w-4 h-4 mt-0.5 text-primary shrink-0" />
+          <span>read and write google tasks</span>
         </li>
         <li className="flex items-start gap-3 text-sm text-muted-foreground">
           <CheckCircle2 className="w-4 h-4 mt-0.5 text-primary shrink-0" />
@@ -76,7 +84,7 @@ export default function ConnectPage() {
         className="inline-flex items-center gap-2 h-12 px-6 rounded-xl bg-foreground text-background text-sm font-semibold tracking-tight hover:opacity-90 active:scale-[0.98] transition no-underline"
       >
         <Calendar className="w-4 h-4" />
-        connect google calendar
+        connect google account
       </a>
     </ConnectLayout>
   );

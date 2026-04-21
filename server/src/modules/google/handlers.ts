@@ -148,6 +148,8 @@ export async function handleGoogleCallback(req: Request, res: Response) {
       googleAccessToken: tokens.accessToken,
       googleAccessTokenExpiresAt: tokens.accessTokenExpiresAt,
       calendarConnectedAt: new Date(),
+      contactsConnectedAt: new Date(),
+      tasksConnectedAt: new Date(),
       connectToken: null,
       connectTokenExpiresAt: null,
       ...(googleTimezone ? { timezone: googleTimezone } : {}),

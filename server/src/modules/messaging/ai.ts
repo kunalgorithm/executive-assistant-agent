@@ -9,7 +9,20 @@ import { logger } from '@/utils/log';
 import { safeJsonParse } from '@/utils/json';
 import type { UserModel } from '@/generated/prisma/models/User';
 import { GEMINI_FLASH3_MODEL } from '@/utils/constants';
-import { calendarFunctionDeclarations, dispatchCalendarToolCall } from '@/modules/google/tools';
+import {
+  calendarFunctionDeclarations,
+  contactsFunctionDeclarations,
+  tasksFunctionDeclarations,
+  restaurantFunctionDeclarations,
+  CALENDAR_TOOL_NAMES,
+  CONTACTS_TOOL_NAMES,
+  RESTAURANT_TOOL_NAMES,
+  TASKS_TOOL_NAMES,
+  dispatchCalendarToolCall,
+  dispatchContactsToolCall,
+  dispatchTasksToolCall,
+  dispatchRestaurantToolCall,
+} from '@/modules/google/tools';
 import { REMINDER_TOOL_NAMES, dispatchReminderToolCall, reminderFunctionDeclarations } from '@/modules/reminders/tools';
 
 export type ConversationMessage = { role: 'user' | 'model'; content: string };
@@ -43,6 +56,9 @@ export async function getUserConversation(userId: string) {
 
 export type ConnectionState = {
   calendarConnected: boolean;
+  contactsConnected: boolean;
+  tasksConnected: boolean;
+  restaurantsAvailable: boolean;
   connectLink: string | null;
 };
 
@@ -68,9 +84,14 @@ export async function generateSaylaResponse(
     parts: [{ text: msg.content }],
   }));
 
-  const functionDeclarations = connection.calendarConnected
-    ? [...calendarFunctionDeclarations, ...reminderFunctionDeclarations]
-    : reminderFunctionDeclarations;
+  // Assemble tool declarations based on what's connected.
+  const functionDeclarations = [
+    ...(connection.calendarConnected ? calendarFunctionDeclarations : []),
+    ...(connection.contactsConnected ? contactsFunctionDeclarations : []),
+    ...(connection.tasksConnected ? tasksFunctionDeclarations : []),
+    ...(connection.restaurantsAvailable ? restaurantFunctionDeclarations : []),
+    ...reminderFunctionDeclarations,
+  ];
   const tools = [{ functionDeclarations }];
 
   let rawResponse: string | undefined;
@@ -135,7 +156,15 @@ export async function generateSaylaResponse(
         const toolArgs = (fc.args ?? {}) as Record<string, unknown>;
         const result = REMINDER_TOOL_NAMES.has(name)
           ? await dispatchReminderToolCall({ userId: user.id, userTimezone: user.timezone }, name, toolArgs)
-          : await dispatchCalendarToolCall(user.id, name, toolArgs);
+          : CALENDAR_TOOL_NAMES.has(name)
+            ? await dispatchCalendarToolCall(user.id, name, toolArgs)
+            : CONTACTS_TOOL_NAMES.has(name)
+              ? await dispatchContactsToolCall(user.id, name, toolArgs)
+              : TASKS_TOOL_NAMES.has(name)
+                ? await dispatchTasksToolCall(user.id, name, toolArgs)
+                : RESTAURANT_TOOL_NAMES.has(name)
+                  ? await dispatchRestaurantToolCall(user.id, name, toolArgs)
+                  : { ok: false, error: `unknown_tool:${name}` };
         logger.info('[ai] Tool call executed', { userId: user.id, name: fc.name, ok: result.ok });
         responseParts.push({
           functionResponse: { name, response: result },

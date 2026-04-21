@@ -9,6 +9,29 @@ datasource db {
   provider = "postgresql"
 }
 
+enum ReminderStatus {
+  scheduled
+  processing
+  completed
+  cancelled
+}
+
+enum ReminderCategory {
+  general
+  birthday
+  event
+  conflict
+  busy_time
+}
+
+enum ReminderRecurrence {
+  none
+  daily
+  weekly
+  monthly
+  yearly
+}
+
 model User {
   id          String  @id @default(uuid())
   refId       String  @unique @default(uuid()) @map("ref_id")
@@ -44,6 +67,7 @@ model User {
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
   analyticsEvents AnalyticsEvent[]
+  reminders       Reminder[]
 
   @@index([refId])
   @@index([phoneNumber])
@@ -81,4 +105,29 @@ model AnalyticsEvent {
   @@index([event, createdAt])
   @@index([userId])
   @@map("analytics_events")
+}
+
+model Reminder {
+  id          String             @id @default(uuid())
+  userId      String             @map("user_id")
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  note        String?            @db.Text
+  category    ReminderCategory   @default(general)
+  status      ReminderStatus     @default(scheduled)
+  recurrence  ReminderRecurrence @default(none)
+  interval    Int                @default(1)
+  remindAt    DateTime           @map("remind_at")
+  timezone    String
+  lastSentAt  DateTime?          @map("last_sent_at")
+  cancelledAt DateTime?          @map("cancelled_at")
+  failedCount Int                @default(0) @map("failed_count")
+  lastError   String?            @map("last_error") @db.Text
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  @@index([userId, status])
+  @@index([status, remindAt])
+  @@index([category, remindAt])
+  @@map("reminders")
 }

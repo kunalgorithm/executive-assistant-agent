@@ -27,7 +27,7 @@ const PRICE_LEVEL_LABEL: Record<string, string> = {
 
 export type Restaurant = {
   name: string;
-  address: string;
+  address: string | null;
   rating: number | null;
   ratingCount: number | null;
   priceLevel: string | null;

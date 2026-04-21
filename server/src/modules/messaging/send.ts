@@ -18,7 +18,17 @@ export async function sendTypingIndicator(toNumber: string) {
   }
 }
 
-export async function sendAndSaveOutbound(content: string, toNumber: string, userId?: string, mediaUrl?: string) {
+type SendAndSaveOptions = {
+  throwOnError?: boolean;
+};
+
+export async function sendAndSaveOutbound(
+  content: string,
+  toNumber: string,
+  userId?: string,
+  mediaUrl?: string,
+  options?: SendAndSaveOptions,
+) {
   const outbound = await db.channelMessage.create({
     data: { toUserId: userId ?? null, content, mediaUrl: mediaUrl ?? null },
   });
@@ -47,6 +57,7 @@ export async function sendAndSaveOutbound(content: string, toNumber: string, use
       hasMediaUrl: !!mediaUrl,
       error: error instanceof Error ? error.message : error,
     });
+    if (options?.throwOnError) throw error;
     return outbound.id;
   }
 }

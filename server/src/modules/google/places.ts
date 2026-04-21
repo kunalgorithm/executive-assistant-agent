@@ -89,7 +89,7 @@ export async function searchRestaurants(args: SearchRestaurantsArgs) {
       return { ok: false as const, error: 'api_error' };
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as { places?: unknown[] };
     const restaurants: Restaurant[] = (data.places ?? []).map(normalizePlace);
     return { ok: true as const, restaurants };
   } catch (error) {

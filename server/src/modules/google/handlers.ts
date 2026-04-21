@@ -150,6 +150,7 @@ export async function handleGoogleCallback(req: Request, res: Response) {
       calendarConnectedAt: new Date(),
       contactsConnectedAt: new Date(),
       tasksConnectedAt: new Date(),
+      gmailConnectedAt: new Date(),
       connectToken: null,
       connectTokenExpiresAt: null,
       ...(googleTimezone ? { timezone: googleTimezone } : {}),

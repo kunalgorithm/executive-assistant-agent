@@ -5,6 +5,7 @@ import { listEvents, createEvent, updateEvent, deleteEvent } from './calendar';
 import { searchContacts } from './contacts';
 import { listTasks, createTask, updateTask, deleteTask } from './tasks';
 import { searchRestaurants } from './places';
+import { listEmails, getEmail } from './gmail';
 
 /**
  * Function declarations Gemini will choose from. We use parametersJsonSchema
@@ -238,6 +239,47 @@ export const restaurantFunctionDeclarations: FunctionDeclaration[] = [
 
 export const RESTAURANT_TOOL_NAMES = new Set(restaurantFunctionDeclarations.map((d) => d.name!));
 
+export const gmailFunctionDeclarations: FunctionDeclaration[] = [
+  {
+    name: 'list_emails',
+    description:
+      "List messages from the owner's Gmail inbox. Use this for any question about their email — what's unread, who's emailed them, what needs attention, what came from a specific sender. Returns envelope metadata (from, subject, date, snippet, unread status) for up to 20 matching messages. Use get_email to pull the full body of a specific message when the owner asks to summarize or read it.",
+    parametersJsonSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description:
+            'Optional Gmail search query using Gmail\'s own operators. Examples: "is:unread" (unread messages), "from:priya@example.com" (from a specific sender), "subject:invoice" (subject contains), "newer_than:7d" (last week), "has:attachment", "in:important". Combine with spaces for AND, e.g. "is:unread newer_than:3d". Leave unset to return the 10 newest messages in the inbox.',
+        },
+        maxResults: {
+          type: 'integer',
+          description: 'Optional max messages to return, default 10, capped at 20.',
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'get_email',
+    description:
+      'Fetch the full body of a single email by its messageId (obtained from a prior list_emails result). Use this when the owner asks you to summarize, read, or pull details from a specific message. Returns the headers plus the plaintext body (truncated at ~8000 chars). Read-only — does NOT mark the message as read or modify state.',
+    parametersJsonSchema: {
+      type: 'object',
+      properties: {
+        messageId: {
+          type: 'string',
+          description: 'The message id from a prior list_emails result.',
+        },
+      },
+      required: ['messageId'],
+      additionalProperties: false,
+    },
+  },
+];
+
+export const GMAIL_TOOL_NAMES = new Set(gmailFunctionDeclarations.map((d) => d.name!));
+
 /**
  * Run a function call against the user's calendar and return a serializable result.
  * Errors are returned in-band so the model can explain them to the owner.
@@ -336,6 +378,33 @@ export async function dispatchTasksToolCall(
     }
   } catch (error) {
     logger.error('[tasks-tools] Dispatcher crashed', {
+      userId,
+      name,
+      error: error instanceof Error ? error.message : error,
+    });
+    return { ok: false, error: 'dispatcher_crash' };
+  }
+}
+
+export async function dispatchGmailToolCall(
+  userId: string,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  try {
+    switch (name) {
+      case 'list_emails':
+        return (await listEmails(userId, args as Parameters<typeof listEmails>[1])) as unknown as Record<
+          string,
+          unknown
+        >;
+      case 'get_email':
+        return (await getEmail(userId, args as Parameters<typeof getEmail>[1])) as unknown as Record<string, unknown>;
+      default:
+        return { ok: false, error: `unknown_tool:${name}` };
+    }
+  } catch (error) {
+    logger.error('[gmail-tools] Dispatcher crashed', {
       userId,
       name,
       error: error instanceof Error ? error.message : error,

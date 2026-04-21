@@ -126,7 +126,8 @@ async function processInboundMessageAsync(data: SendblueInboundPayload) {
   const calendarConnected = user.calendarConnectedAt !== null;
   const contactsConnected = user.contactsConnectedAt !== null;
   const tasksConnected = user.tasksConnectedAt !== null;
-  const googleConnected = calendarConnected && contactsConnected && tasksConnected;
+  const gmailConnected = user.gmailConnectedAt !== null;
+  const googleConnected = calendarConnected && contactsConnected && tasksConnected && gmailConnected;
   const connectLink = googleConnected ? null : await issueConnectLink(user.id);
 
   await sendTypingIndicator(data.from_number);
@@ -135,6 +136,7 @@ async function processInboundMessageAsync(data: SendblueInboundPayload) {
     calendarConnected,
     contactsConnected,
     tasksConnected,
+    gmailConnected,
     restaurantsAvailable: !!env.GOOGLE_MAPS_API_KEY,
     connectLink,
   });

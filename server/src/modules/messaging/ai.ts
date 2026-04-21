@@ -14,14 +14,17 @@ import {
   contactsFunctionDeclarations,
   tasksFunctionDeclarations,
   restaurantFunctionDeclarations,
+  gmailFunctionDeclarations,
   CALENDAR_TOOL_NAMES,
   CONTACTS_TOOL_NAMES,
   RESTAURANT_TOOL_NAMES,
   TASKS_TOOL_NAMES,
+  GMAIL_TOOL_NAMES,
   dispatchCalendarToolCall,
   dispatchContactsToolCall,
   dispatchTasksToolCall,
   dispatchRestaurantToolCall,
+  dispatchGmailToolCall,
 } from '@/modules/google/tools';
 import { REMINDER_TOOL_NAMES, dispatchReminderToolCall, reminderFunctionDeclarations } from '@/modules/reminders/tools';
 
@@ -58,6 +61,7 @@ export type ConnectionState = {
   calendarConnected: boolean;
   contactsConnected: boolean;
   tasksConnected: boolean;
+  gmailConnected: boolean;
   restaurantsAvailable: boolean;
   connectLink: string | null;
 };
@@ -89,6 +93,7 @@ export async function generateSaylaResponse(
     ...(connection.calendarConnected ? calendarFunctionDeclarations : []),
     ...(connection.contactsConnected ? contactsFunctionDeclarations : []),
     ...(connection.tasksConnected ? tasksFunctionDeclarations : []),
+    ...(connection.gmailConnected ? gmailFunctionDeclarations : []),
     ...(connection.restaurantsAvailable ? restaurantFunctionDeclarations : []),
     ...reminderFunctionDeclarations,
   ];
@@ -162,9 +167,11 @@ export async function generateSaylaResponse(
               ? await dispatchContactsToolCall(user.id, name, toolArgs)
               : TASKS_TOOL_NAMES.has(name)
                 ? await dispatchTasksToolCall(user.id, name, toolArgs)
-                : RESTAURANT_TOOL_NAMES.has(name)
-                  ? await dispatchRestaurantToolCall(user.id, name, toolArgs)
-                  : { ok: false, error: `unknown_tool:${name}` };
+                : GMAIL_TOOL_NAMES.has(name)
+                  ? await dispatchGmailToolCall(user.id, name, toolArgs)
+                  : RESTAURANT_TOOL_NAMES.has(name)
+                    ? await dispatchRestaurantToolCall(user.id, name, toolArgs)
+                    : { ok: false, error: `unknown_tool:${name}` };
         logger.info('[ai] Tool call executed', { userId: user.id, name: fc.name, ok: result.ok });
         responseParts.push({
           functionResponse: { name, response: result },

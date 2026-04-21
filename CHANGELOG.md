@@ -14,6 +14,7 @@ When you merge a PR or push a non-trivial commit, add a bullet to the latest dat
 
 ### Added
 
+- **Gmail read-only integration.** Adds `gmail.readonly` scope into the existing Google OAuth consent flow. Exposes two tools to Gemini: `list_emails` (takes a Gmail search query — `is:unread`, `from:foo@bar.com`, `newer_than:7d`, etc.) and `get_email` (fetches the full body of a specific message). Body is best-effort decoded from MIME + HTML-stripped and capped at 8000 chars. Stamps a `gmailConnectedAt` on the user row — **existing users must reconnect once** to grant the new scope. Write support (send/reply/archive) deliberately not included yet.
 - **iMessage-native reminders** — new `reminders` module with `create_reminder`, `list_reminders`, `update_reminder`, `cancel_reminder` tools exposed to Gemini. Cron job runs every minute to dispatch due reminders via SendBlue. Supports one-off and recurring (e.g. yearly birthdays), plus categories for birthdays, conflicts, and busy windows. Analytics events added. ([#2](https://github.com/kunalgorithm/executive-assistant-agent/pull/2))
 
 ### Changed

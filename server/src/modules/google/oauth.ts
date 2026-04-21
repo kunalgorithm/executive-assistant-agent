@@ -10,15 +10,16 @@ import { logger } from '@/utils/log';
  * Calendar: full read/write for events.
  * Contacts: read-only via People API.
  * Tasks: full read/write for Google Tasks.
- * Gmail scopes are deliberately not requested yet.
+ * Gmail: read-only for now (list + read threads). Write scopes come later.
  */
-export const CALENDAR_SCOPES = [
+export const GOOGLE_SCOPES = [
   'openid',
   'email',
   'profile',
   'https://www.googleapis.com/auth/calendar',
   'https://www.googleapis.com/auth/contacts.readonly',
   'https://www.googleapis.com/auth/tasks',
+  'https://www.googleapis.com/auth/gmail.readonly',
 ];
 
 export type GoogleCredentialsMissingError = { kind: 'missing-google-env' };
@@ -37,7 +38,7 @@ export function buildConsentUrl(state: string): string | null {
   return client.generateAuthUrl({
     access_type: 'offline', // required to get a refresh token
     prompt: 'consent', // force refresh_token to be returned even on re-consent
-    scope: CALENDAR_SCOPES,
+    scope: GOOGLE_SCOPES,
     state,
     include_granted_scopes: true,
   });

@@ -13,11 +13,14 @@ import {
   calendarFunctionDeclarations,
   contactsFunctionDeclarations,
   tasksFunctionDeclarations,
+  restaurantFunctionDeclarations,
   CALENDAR_TOOL_NAMES,
   CONTACTS_TOOL_NAMES,
+  TASKS_TOOL_NAMES,
   dispatchCalendarToolCall,
   dispatchContactsToolCall,
   dispatchTasksToolCall,
+  dispatchRestaurantToolCall,
 } from '@/modules/google/tools';
 
 export type ConversationMessage = { role: 'user' | 'model'; content: string };
@@ -53,6 +56,7 @@ export type ConnectionState = {
   calendarConnected: boolean;
   contactsConnected: boolean;
   tasksConnected: boolean;
+  restaurantsAvailable: boolean;
   connectLink: string | null;
 };
 
@@ -83,6 +87,7 @@ export async function generateSaylaResponse(
     ...(connection.calendarConnected ? calendarFunctionDeclarations : []),
     ...(connection.contactsConnected ? contactsFunctionDeclarations : []),
     ...(connection.tasksConnected ? tasksFunctionDeclarations : []),
+    ...(connection.restaurantsAvailable ? restaurantFunctionDeclarations : []),
   ];
   const tools = functionDeclarations.length > 0 ? [{ functionDeclarations }] : undefined;
 
@@ -148,7 +153,9 @@ export async function generateSaylaResponse(
           ? dispatchCalendarToolCall
           : CONTACTS_TOOL_NAMES.has(fc.name!)
             ? dispatchContactsToolCall
-            : dispatchTasksToolCall;
+            : TASKS_TOOL_NAMES.has(fc.name!)
+              ? dispatchTasksToolCall
+              : dispatchRestaurantToolCall;
         const result = await dispatch(user.id, fc.name!, (fc.args ?? {}) as Record<string, unknown>);
         logger.info('[ai] Tool call executed', { userId: user.id, name: fc.name, ok: result.ok });
         responseParts.push({

@@ -4,6 +4,7 @@ import { google } from 'googleapis';
 import { db } from '@/utils/db';
 import { env } from '@/utils/env';
 import { logger } from '@/utils/log';
+import { getPrimaryAccountForFeature, updateConnectedAccountAccessToken } from '@/modules/integrations/accounts';
 
 /**
  * All Google scopes requested in the single consent flow.
@@ -48,7 +49,10 @@ export type GoogleTokenExchange = {
   refreshToken: string | null;
   accessToken: string;
   accessTokenExpiresAt: Date;
+  providerAccountId: string | null;
   email: string | null;
+  displayName: string | null;
+  scopes: string[];
 };
 
 export async function exchangeCodeForTokens(code: string): Promise<GoogleTokenExchange | null> {
@@ -67,11 +71,19 @@ export async function exchangeCodeForTokens(code: string): Promise<GoogleTokenEx
     : new Date(Date.now() + 60 * 60 * 1000); // fallback: 1h
 
   // Extract email from the id_token if present
+  let providerAccountId: string | null = null;
   let email: string | null = null;
+  let displayName: string | null = null;
   if (tokens.id_token) {
     try {
-      const payload = JSON.parse(Buffer.from(tokens.id_token.split('.')[1]!, 'base64').toString());
+      const payload = JSON.parse(Buffer.from(tokens.id_token.split('.')[1]!, 'base64url').toString()) as {
+        sub?: string;
+        email?: string;
+        name?: string;
+      };
+      providerAccountId = typeof payload.sub === 'string' ? payload.sub : null;
       email = typeof payload.email === 'string' ? payload.email : null;
+      displayName = typeof payload.name === 'string' ? payload.name : null;
     } catch (err) {
       logger.warn('[google-oauth] Failed to decode id_token', {
         error: err instanceof Error ? err.message : err,
@@ -83,7 +95,10 @@ export async function exchangeCodeForTokens(code: string): Promise<GoogleTokenEx
     refreshToken: tokens.refresh_token ?? null,
     accessToken: tokens.access_token,
     accessTokenExpiresAt,
+    providerAccountId,
     email,
+    displayName,
+    scopes: GOOGLE_SCOPES,
   };
 }
 
@@ -92,6 +107,16 @@ export async function exchangeCodeForTokens(code: string): Promise<GoogleTokenEx
  * Future calendar tool calls will go through this.
  */
 export async function getAccessTokenForUser(userId: string): Promise<string | null> {
+  const connectedAccount =
+    (await getPrimaryAccountForFeature(userId, 'calendar', ['google'])) ??
+    (await getPrimaryAccountForFeature(userId, 'email', ['google'])) ??
+    (await getPrimaryAccountForFeature(userId, 'contacts', ['google'])) ??
+    (await getPrimaryAccountForFeature(userId, 'tasks', ['google']));
+  if (connectedAccount?.refreshToken) {
+    const token = await getAccessTokenForConnectedGoogleAccount(connectedAccount);
+    if (token) return token;
+  }
+
   const user = await db.user.findUnique({
     where: { id: userId },
     select: {
@@ -137,6 +162,49 @@ export async function getAccessTokenForUser(userId: string): Promise<string | nu
   } catch (error) {
     logger.error('[google-oauth] Failed to refresh access token', {
       userId: user.id,
+      error: error instanceof Error ? error.message : error,
+    });
+    return null;
+  }
+}
+
+type GoogleConnectedAccount = {
+  id: string;
+  refreshToken: string | null;
+  accessToken: string | null;
+  accessTokenExpiresAt: Date | null;
+};
+
+export async function getAccessTokenForConnectedGoogleAccount(account: GoogleConnectedAccount): Promise<string | null> {
+  if (!account.refreshToken) return null;
+
+  const SKEW_MS = 60 * 1000; // refresh 1 minute early
+  if (
+    account.accessToken &&
+    account.accessTokenExpiresAt &&
+    account.accessTokenExpiresAt.getTime() - Date.now() > SKEW_MS
+  ) {
+    return account.accessToken;
+  }
+
+  const client = getOAuthClient();
+  if (!client) return null;
+
+  client.setCredentials({ refresh_token: account.refreshToken });
+  try {
+    const { credentials } = await client.refreshAccessToken();
+    if (!credentials.access_token) return null;
+
+    const expiresAt = credentials.expiry_date
+      ? new Date(credentials.expiry_date)
+      : new Date(Date.now() + 60 * 60 * 1000);
+
+    await updateConnectedAccountAccessToken(account.id, credentials.access_token, expiresAt);
+
+    return credentials.access_token;
+  } catch (error) {
+    logger.error('[google-oauth] Failed to refresh connected account access token', {
+      accountId: account.id,
       error: error instanceof Error ? error.message : error,
     });
     return null;

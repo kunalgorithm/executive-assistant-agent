@@ -6,6 +6,7 @@ import { searchContacts } from './contacts';
 import { listTasks, createTask, updateTask, deleteTask } from './tasks';
 import { searchRestaurants } from './places';
 import { listEmails, getEmail } from './gmail';
+import { getConnectedAccounts } from '@/modules/integrations/accounts';
 
 /**
  * Function declarations Gemini will choose from. We use parametersJsonSchema
@@ -15,7 +16,7 @@ export const calendarFunctionDeclarations: FunctionDeclaration[] = [
   {
     name: 'list_calendar_events',
     description:
-      "List events from the owner's primary Google Calendar between two times. Use this for any question about their schedule, availability, or what's coming up. Returns up to 25 events by default.",
+      "List events from the owner's connected Google and Microsoft calendars between two times. Use this for any question about their schedule, availability, or what's coming up. Returns up to 25 events by default and includes account/provider metadata.",
     parametersJsonSchema: {
       type: 'object',
       properties: {
@@ -45,7 +46,7 @@ export const calendarFunctionDeclarations: FunctionDeclaration[] = [
   {
     name: 'create_calendar_event',
     description:
-      "Create a new event on the owner's primary Google Calendar. Only call this AFTER the owner has explicitly confirmed the event details. Never call on first mention — always propose details in text first and wait for 'yes'.",
+      "Create a new event on the owner's primary connected calendar. Only call this AFTER the owner has explicitly confirmed the event details. Never call on first mention — always propose details in text first and wait for 'yes'.",
     parametersJsonSchema: {
       type: 'object',
       properties: {
@@ -116,7 +117,7 @@ export const contactsFunctionDeclarations: FunctionDeclaration[] = [
   {
     name: 'search_contacts',
     description:
-      'Search the owner\'s Google Contacts by name, email, phone, or company. Partial matches work — passing just a first name (e.g. "priya"), a fragment ("kum"), or an email handle ("priya@") all return matching contacts. Returns up to 10 matches ranked by how well they match. Use this to look up a person\'s phone number, email, or employer.',
+      'Search the owner\'s connected Google and Microsoft contacts by name, email, phone, or company. Partial matches work — passing just a first name (e.g. "priya"), a fragment ("kum"), or an email handle ("priya@") all return matching contacts. Returns up to 10 matches ranked by how well they match. Use this to look up a person\'s phone number, email, or employer.',
     parametersJsonSchema: {
       type: 'object',
       properties: {
@@ -142,7 +143,7 @@ export const tasksFunctionDeclarations: FunctionDeclaration[] = [
   {
     name: 'list_tasks',
     description:
-      "List tasks from the owner's default Google Tasks list. Use this for any question about their to-dos or task list. Returns open tasks by default.",
+      "List tasks from the owner's primary connected Google Tasks or Microsoft To Do list. Use this for any question about their to-dos or task list. Returns open tasks by default.",
     parametersJsonSchema: {
       type: 'object',
       properties: {
@@ -161,7 +162,7 @@ export const tasksFunctionDeclarations: FunctionDeclaration[] = [
   {
     name: 'create_task',
     description:
-      "Add a new task to the owner's default Google Tasks list. Only call AFTER the owner has explicitly confirmed the task details.",
+      "Add a new task to the owner's primary connected Google Tasks or Microsoft To Do list. Only call AFTER the owner has explicitly confirmed the task details.",
     parametersJsonSchema: {
       type: 'object',
       properties: {
@@ -243,14 +244,14 @@ export const gmailFunctionDeclarations: FunctionDeclaration[] = [
   {
     name: 'list_emails',
     description:
-      "List messages from the owner's Gmail inbox. Use this for any question about their email — what's unread, who's emailed them, what needs attention, what came from a specific sender. Returns envelope metadata (from, subject, date, snippet, unread status) for up to 20 matching messages. Use get_email to pull the full body of a specific message when the owner asks to summarize or read it.",
+      "List messages from the owner's connected Gmail and Microsoft Outlook inboxes. Use this for any question about their email — what's unread, who's emailed them, what needs attention, what came from a specific sender. Returns envelope metadata (from, subject, date, snippet, unread status) for up to 20 matching messages. Use get_email to pull the full body of a specific message when the owner asks to summarize or read it.",
     parametersJsonSchema: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
           description:
-            'Optional Gmail search query using Gmail\'s own operators. Examples: "is:unread" (unread messages), "from:priya@example.com" (from a specific sender), "subject:invoice" (subject contains), "newer_than:7d" (last week), "has:attachment", "in:important". Combine with spaces for AND, e.g. "is:unread newer_than:3d". Leave unset to return the 10 newest messages in the inbox.',
+            'Optional provider search query. For Gmail, Gmail search operators work. For Microsoft Outlook, this is passed as a text search. Examples: "is:unread", "from:priya@example.com", "invoice", "newer_than:7d". Leave unset to return the newest messages.',
         },
         maxResults: {
           type: 'integer',
@@ -279,6 +280,21 @@ export const gmailFunctionDeclarations: FunctionDeclaration[] = [
 ];
 
 export const GMAIL_TOOL_NAMES = new Set(gmailFunctionDeclarations.map((d) => d.name!));
+
+export const accountFunctionDeclarations: FunctionDeclaration[] = [
+  {
+    name: 'list_connected_accounts',
+    description:
+      "List the owner's connected Google and Microsoft accounts, including which features each account grants: calendar, contacts, tasks, and email. Use this when the owner asks which accounts are connected or whether Microsoft/Google is connected.",
+    parametersJsonSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+];
+
+export const ACCOUNT_TOOL_NAMES = new Set(accountFunctionDeclarations.map((d) => d.name!));
 
 /**
  * Run a function call against the user's calendar and return a serializable result.
@@ -430,6 +446,24 @@ export async function dispatchRestaurantToolCall(
     }
   } catch (error) {
     logger.error('[restaurant-tools] Dispatcher crashed', {
+      name,
+      error: error instanceof Error ? error.message : error,
+    });
+    return { ok: false, error: 'dispatcher_crash' };
+  }
+}
+
+export async function dispatchAccountToolCall(userId: string, name: string): Promise<Record<string, unknown>> {
+  try {
+    switch (name) {
+      case 'list_connected_accounts':
+        return { ok: true, accounts: await getConnectedAccounts(userId) };
+      default:
+        return { ok: false, error: `unknown_tool:${name}` };
+    }
+  } catch (error) {
+    logger.error('[account-tools] Dispatcher crashed', {
+      userId,
       name,
       error: error instanceof Error ? error.message : error,
     });

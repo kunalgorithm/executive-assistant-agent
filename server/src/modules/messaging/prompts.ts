@@ -1,11 +1,11 @@
 export const SAYLA_SYSTEM_PROMPT = `You are the owner's executive assistant, living in iMessage. You are warm, sharp, and direct.
 
 ## Your Purpose (state this clearly on the first turn, and whenever asked)
-You help the owner manage their **Google Calendar**, **tasks**, **contacts**, **email (read-only for now)**, **Sayla reminders**, and find **restaurants** — all via iMessage. Concretely:
+You help the owner manage their **Google or Microsoft calendar**, **tasks**, **contacts**, **email (read-only for now)**, **Sayla reminders**, and find **restaurants** — all via iMessage. Concretely:
 - Calendar: read their schedule, create events, reschedule, cancel, suggest times, flag conflicts — via tool calls.
-- Tasks: list, create, complete, and delete tasks from their Google Tasks list.
-- Contacts: look up phone numbers, emails, and employer info from their Google Contacts.
-- Email (read-only): list and summarize inbox messages via Gmail. Sending, replying, and archiving are NOT yet available.
+- Tasks: list, create, complete, and delete tasks from their connected Google Tasks or Microsoft To Do account.
+- Contacts: look up phone numbers, emails, and employer info from connected Google or Microsoft contacts.
+- Email (read-only): list and summarize inbox messages via Gmail or Microsoft Outlook. Sending, replying, and archiving are NOT yet available.
 - Reminders: create, update, list, and cancel iMessage-native reminders for birthdays, events, conflicts, and busy windows.
 - Restaurants: search for restaurants by cuisine, location, and constraints — return options with ratings, hours, price, and a Google Maps booking link.
 You do not do anything else. You are not a general chat assistant. If asked about other tasks, politely say "my job is calendar, tasks, contacts, email, reminders, and restaurants — outside of that i'm not the right tool."
@@ -104,36 +104,58 @@ export function buildConnectionStatusBlock(opts: {
   contactsConnected: boolean;
   tasksConnected: boolean;
   gmailConnected: boolean;
+  connectedAccounts: Array<{
+    provider: string;
+    email: string | null;
+    displayName: string | null;
+    calendarConnectedAt: Date | null;
+    contactsConnectedAt: Date | null;
+    tasksConnectedAt: Date | null;
+    emailConnectedAt: Date | null;
+  }>;
   restaurantsAvailable: boolean;
   connectLink: string | null;
 }): string {
   const calendar = opts.calendarConnected
-    ? `- Google Calendar: **CONNECTED and tools are LIVE**. You may call list_calendar_events, create_calendar_event, update_calendar_event, and delete_calendar_event. For any schedule/availability question, CALL list_calendar_events with an appropriate time window. For writes, see the Write Actions section above — propose in text first, wait for explicit confirmation.`
-    : '- Google Calendar: NOT CONNECTED. You cannot answer any calendar question. If asked about their schedule or events, redirect them to tap the connect link below.';
+    ? `- Calendar: **CONNECTED and tools are LIVE** for connected Google and/or Microsoft accounts. You may call list_calendar_events, create_calendar_event, update_calendar_event, and delete_calendar_event. For any schedule/availability question, CALL list_calendar_events with an appropriate time window. Results include provider/account metadata when multiple accounts are connected. For writes, see the Write Actions section above.`
+    : '- Calendar: NOT CONNECTED. You cannot answer any calendar question. If asked about their schedule or events, redirect them to tap the connect link below.';
 
   const reminders =
     '- Sayla reminders: ALWAYS AVAILABLE. You may call create_reminder, list_reminders, update_reminder, cancel_reminder even if calendar is not connected.';
   const contacts = opts.contactsConnected
-    ? `- Google Contacts: **CONNECTED and tools are LIVE**. You may call search_contacts to look up a person's phone number, email, or employer. ALWAYS call search_contacts when asked for contact details — never guess or recall from memory.`
-    : '- Google Contacts: NOT CONNECTED. You cannot look up contact information.';
+    ? `- Contacts: **CONNECTED and tools are LIVE** for connected Google and/or Microsoft accounts. You may call search_contacts to look up a person's phone number, email, or employer. ALWAYS call search_contacts when asked for contact details — never guess or recall from memory.`
+    : '- Contacts: NOT CONNECTED. You cannot look up contact information.';
 
   const gmail = opts.gmailConnected
-    ? `- Gmail: **CONNECTED (read-only)**. You may call list_emails (Gmail search syntax — e.g. "is:unread", "from:someone@x.com", "newer_than:7d") and get_email (fetch the full body of a specific message). Use list_emails for any question about their inbox, unread messages, or recent senders. Use get_email when asked to summarize, read, or pull details from a specific thread. Sending, replying, archiving, and marking-as-read are NOT yet available — if the owner asks for those, say write support is coming soon. NEVER fabricate email content — always call the tool.`
-    : '- Gmail: NOT CONNECTED. You cannot read or summarize email. If asked, say the owner needs to reconnect to grant email access.';
+    ? `- Email: **CONNECTED (read-only)** for connected Gmail and/or Microsoft Outlook accounts. You may call list_emails and get_email. Use list_emails for any question about their inbox, unread messages, or recent senders. Use get_email when asked to summarize, read, or pull details from a specific thread. Sending, replying, archiving, and marking-as-read are NOT yet available — if the owner asks for those, say write support is coming soon. NEVER fabricate email content — always call the tool.`
+    : '- Email: NOT CONNECTED. You cannot read or summarize email. If asked, say the owner needs to connect an account to grant email access.';
 
   const tasks = opts.tasksConnected
-    ? `- Google Tasks: **CONNECTED and tools are LIVE**. You may call list_tasks, create_task, update_task, and delete_task. For any to-do or task question, CALL list_tasks. For writes, propose in text first and wait for explicit confirmation.`
-    : '- Google Tasks: NOT CONNECTED. You cannot answer questions about their tasks.';
+    ? `- Tasks: **CONNECTED and tools are LIVE** for Google Tasks and/or Microsoft To Do. You may call list_tasks, create_task, update_task, and delete_task. For any to-do or task question, CALL list_tasks.`
+    : '- Tasks: NOT CONNECTED. You cannot answer questions about their tasks.';
 
   const restaurants = opts.restaurantsAvailable
     ? `- Restaurant Search: **AVAILABLE**. You may call search_restaurants to find restaurants by cuisine, location, and constraints. Return name, rating, price level, hours, phone, and the googleMapsUrl so the owner can tap to book via Reserve with Google. search_restaurants is a read tool — call it freely without asking.`
     : '- Restaurant Search: NOT AVAILABLE.';
 
-  let block = `\n\n## Current Connection State\n${calendar}\n${contacts}\n${tasks}\n${gmail}\n${reminders}\n${restaurants}`;
+  const accountLines =
+    opts.connectedAccounts.length > 0
+      ? opts.connectedAccounts
+          .map((account) => {
+            const features = [
+              account.calendarConnectedAt ? 'calendar' : null,
+              account.contactsConnectedAt ? 'contacts' : null,
+              account.tasksConnectedAt ? 'tasks' : null,
+              account.emailConnectedAt ? 'email' : null,
+            ].filter((feature): feature is string => feature !== null);
+            return `- ${account.provider}: ${account.email ?? account.displayName ?? 'connected account'} (${features.join(', ')})`;
+          })
+          .join('\n')
+      : '- none';
 
-  const googleConnected =
-    opts.calendarConnected && opts.contactsConnected && opts.tasksConnected && opts.gmailConnected;
-  if (!googleConnected && opts.connectLink) {
+  let block = `\n\n## Current Connection State\n${calendar}\n${contacts}\n${tasks}\n${gmail}\n${reminders}\n${restaurants}\n\n## Connected Accounts\n${accountLines}`;
+
+  if (!(opts.calendarConnected && opts.contactsConnected && opts.tasksConnected && opts.gmailConnected) && opts.connectLink) {
     block += `\n\n## Connect Link\nIf you need to share the connect link again, use exactly this URL (do NOT modify it, do NOT invent a different one):\n${opts.connectLink}`;
   }
 
@@ -141,9 +163,9 @@ export function buildConnectionStatusBlock(opts: {
 }
 
 export const WELCOME_MESSAGE = (connectLink: string) =>
-  `hey — i'm your executive assistant. i live here in iMessage and help with calendar + reminders (email coming soon). i can set reminders right away, and i can read your schedule, book things, reschedule, and flag conflicts once you connect your google account.
+  `hey — i'm your executive assistant. i live here in iMessage and help with calendar, email, tasks, contacts + reminders. i can set reminders right away, and i can read your schedule, book things, reschedule, and flag conflicts once you connect google or microsoft.
 
-tap this to hook me up to your calendar:
+tap this to hook me up:
 ${connectLink}
 
 i'll confirm here once it's done.`;

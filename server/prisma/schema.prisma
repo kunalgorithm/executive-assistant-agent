@@ -32,6 +32,11 @@ enum ReminderRecurrence {
   yearly
 }
 
+enum ConnectedAccountProvider {
+  google
+  microsoft
+}
+
 model User {
   id          String  @id @default(uuid())
   refId       String  @unique @default(uuid()) @map("ref_id")
@@ -69,10 +74,42 @@ model User {
   updatedAt       DateTime         @updatedAt @map("updated_at")
   analyticsEvents AnalyticsEvent[]
   reminders       Reminder[]
+  connectedAccounts ConnectedAccount[]
 
   @@index([refId])
   @@index([phoneNumber])
   @@map("users")
+}
+
+model ConnectedAccount {
+  id          String                   @id @default(uuid())
+  userId      String                   @map("user_id")
+  user        User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider    ConnectedAccountProvider
+  providerAccountId String             @map("provider_account_id")
+  email       String?
+  displayName String?                  @map("display_name")
+  scopes      String[]                 @default([])
+
+  refreshToken         String?   @map("refresh_token")
+  accessToken          String?   @map("access_token")
+  accessTokenExpiresAt DateTime? @map("access_token_expires_at")
+
+  calendarConnectedAt DateTime? @map("calendar_connected_at")
+  contactsConnectedAt DateTime? @map("contacts_connected_at")
+  tasksConnectedAt    DateTime? @map("tasks_connected_at")
+  emailConnectedAt    DateTime? @map("email_connected_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([provider, providerAccountId])
+  @@index([userId, provider])
+  @@index([userId, calendarConnectedAt])
+  @@index([userId, contactsConnectedAt])
+  @@index([userId, tasksConnectedAt])
+  @@index([userId, emailConnectedAt])
+  @@map("connected_accounts")
 }
 
 model ChannelMessage {

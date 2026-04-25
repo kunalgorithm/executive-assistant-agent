@@ -2,10 +2,15 @@ import { google } from 'googleapis';
 import type { people_v1 } from 'googleapis';
 
 import { logger } from '@/utils/log';
-import { getAccessTokenForUser } from './oauth';
+import { getAccessTokenForConnectedGoogleAccount, getAccessTokenForUser } from './oauth';
+import { MICROSOFT_GRAPH_BASE, getMicrosoftAccessTokenForAccount } from '@/modules/microsoft/oauth';
+import { getAccountsForFeature } from '@/modules/integrations/accounts';
 
 export type Contact = {
   resourceName: string;
+  accountId: string | null;
+  provider: 'google' | 'microsoft';
+  accountEmail: string | null;
   displayName: string | null;
   emails: string[];
   phones: string[];
@@ -18,16 +23,52 @@ const MAX_CONTACTS_RESULTS = 10;
 const PAGE_SIZE = 1000;
 const MAX_PAGES = 10; // 10k contacts is more than enough for a single-owner MVP
 
-function normalizeContact(person: people_v1.Schema$Person): Contact {
+type ContactAccount = {
+  id: string;
+  provider: 'google' | 'microsoft';
+  email: string | null;
+  refreshToken: string | null;
+  accessToken: string | null;
+  accessTokenExpiresAt: Date | null;
+};
+
+function normalizeContact(person: people_v1.Schema$Person, account: { id: string | null; email: string | null }): Contact {
   const name = person.names?.[0];
   const org = person.organizations?.[0];
   return {
     resourceName: person.resourceName ?? '',
+    accountId: account.id,
+    provider: 'google',
+    accountEmail: account.email,
     displayName: name?.displayName ?? null,
     emails: (person.emailAddresses ?? []).map((e) => e.value!).filter(Boolean),
     phones: (person.phoneNumbers ?? []).map((p) => p.value!).filter(Boolean),
     organization: org?.name ?? null,
     jobTitle: org?.title ?? null,
+  };
+}
+
+type MicrosoftContact = {
+  id?: string;
+  displayName?: string;
+  emailAddresses?: Array<{ address?: string }>;
+  businessPhones?: string[];
+  mobilePhone?: string;
+  companyName?: string;
+  jobTitle?: string;
+};
+
+function normalizeMicrosoftContact(contact: MicrosoftContact, account: ContactAccount): Contact {
+  return {
+    resourceName: contact.id ?? '',
+    accountId: account.id,
+    provider: 'microsoft',
+    accountEmail: account.email,
+    displayName: contact.displayName ?? null,
+    emails: (contact.emailAddresses ?? []).map((email) => email.address).filter((email): email is string => !!email),
+    phones: [...(contact.businessPhones ?? []), contact.mobilePhone].filter((phone): phone is string => !!phone),
+    organization: contact.companyName ?? null,
+    jobTitle: contact.jobTitle ?? null,
   };
 }
 
@@ -39,11 +80,29 @@ async function peopleClientForUser(userId: string) {
   return google.people({ version: 'v1', auth });
 }
 
+async function peopleClientForAccount(account: ContactAccount) {
+  const accessToken = await getAccessTokenForConnectedGoogleAccount(account);
+  if (!accessToken) return null;
+  const auth = new google.auth.OAuth2();
+  auth.setCredentials({ access_token: accessToken });
+  return google.people({ version: 'v1', auth });
+}
+
 type CacheEntry = { contacts: Contact[]; expiresAt: number };
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const contactsCache = new Map<string, CacheEntry>();
 
 async function fetchAllContacts(userId: string): Promise<Contact[] | null> {
+  const accounts = await getAccountsForFeature(userId, 'contacts');
+  if (accounts.length > 0) {
+    const contactLists = await Promise.all(
+      accounts.map((account) =>
+        account.provider === 'google' ? fetchGoogleContactsForAccount(account) : fetchMicrosoftContactsForAccount(account),
+      ),
+    );
+    return contactLists.flatMap((contacts) => contacts ?? []);
+  }
+
   const people = await peopleClientForUser(userId);
   if (!people) return null;
 
@@ -62,7 +121,51 @@ async function fetchAllContacts(userId: string): Promise<Contact[] | null> {
     pageToken = data.nextPageToken;
   }
 
-  return all.map(normalizeContact);
+  return all.map((person) => normalizeContact(person, { id: null, email: null }));
+}
+
+async function fetchGoogleContactsForAccount(account: ContactAccount): Promise<Contact[] | null> {
+  const people = await peopleClientForAccount(account);
+  if (!people) return null;
+
+  const all: people_v1.Schema$Person[] = [];
+  let pageToken: string | undefined;
+
+  for (let i = 0; i < MAX_PAGES; i++) {
+    const { data } = await people.people.connections.list({
+      resourceName: 'people/me',
+      personFields: CONTACT_READ_MASK,
+      pageSize: PAGE_SIZE,
+      pageToken,
+    });
+    if (data.connections) all.push(...data.connections);
+    if (!data.nextPageToken) break;
+    pageToken = data.nextPageToken;
+  }
+
+  return all.map((person) => normalizeContact(person, account));
+}
+
+async function fetchMicrosoftContactsForAccount(account: ContactAccount): Promise<Contact[] | null> {
+  const accessToken = await getMicrosoftAccessTokenForAccount(account.id);
+  if (!accessToken) return null;
+
+  const contacts: MicrosoftContact[] = [];
+  let nextUrl: string | null =
+    `${MICROSOFT_GRAPH_BASE}/me/contacts?$top=999&$select=id,displayName,emailAddresses,businessPhones,mobilePhone,companyName,jobTitle`;
+
+  for (let i = 0; i < MAX_PAGES && nextUrl; i++) {
+    const response = await fetch(nextUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!response.ok) {
+      logger.error('[contacts] Microsoft contacts fetch failed', { accountId: account.id, status: response.status });
+      return null;
+    }
+    const data = (await response.json()) as { value?: MicrosoftContact[]; '@odata.nextLink'?: string };
+    contacts.push(...(data.value ?? []));
+    nextUrl = data['@odata.nextLink'] ?? null;
+  }
+
+  return contacts.map((contact) => normalizeMicrosoftContact(contact, account));
 }
 
 async function getCachedContacts(userId: string): Promise<Contact[] | null> {

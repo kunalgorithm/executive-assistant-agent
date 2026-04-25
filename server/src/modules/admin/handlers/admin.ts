@@ -4,6 +4,7 @@ import { getConversationSchema, usersPaginationSchema, conversationQuerySchema }
 import { db } from '@/utils/db';
 import { statusCodes } from '@/utils/http';
 import { getZodErrors } from '@/utils/error';
+import { getConnectedAccounts } from '@/modules/integrations/accounts';
 
 export async function handleListUsers(req: Request, res: Response) {
   const { data: query, errors: queryErrors } = getZodErrors(usersPaginationSchema, req.query);
@@ -51,4 +52,15 @@ export async function handleGetDirectConversation(req: Request, res: Response) {
   const nextCursor = messages.length === query.limit ? messages[messages.length - 1]!.id : null;
 
   res.status(statusCodes.OK).json({ data: { messages: messages.reverse(), nextCursor }, errors: null });
+}
+
+export async function handleGetUserConnectedAccounts(req: Request, res: Response) {
+  const { data: params, errors: paramErrors } = getZodErrors(getConversationSchema, req.params);
+  if (paramErrors || !params) {
+    res.status(statusCodes.BAD_REQUEST).json({ data: null, errors: paramErrors });
+    return;
+  }
+
+  const accounts = await getConnectedAccounts(params.userId);
+  res.status(statusCodes.OK).json({ data: { accounts }, errors: null });
 }

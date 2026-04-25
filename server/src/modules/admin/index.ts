@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-import { handleListUsers, handleGetDirectConversation } from './handlers/admin';
+import { handleListUsers, handleGetDirectConversation, handleGetUserConnectedAccounts } from './handlers/admin';
 import { asyncRoute } from '@/utils/error';
 import { requireAdmin } from './middleware';
 import { adminLimiter } from '@/utils/rateLimit';
@@ -12,6 +12,7 @@ const adminRouter: Router = Router();
 adminRouter.use(adminLimiter);
 
 adminRouter.get('/users', requireAdmin, asyncRoute(handleListUsers));
+adminRouter.get('/users/:userId/connected-accounts', requireAdmin, asyncRoute(handleGetUserConnectedAccounts));
 adminRouter.get('/users/:userId/messages', requireAdmin, asyncRoute(handleGetDirectConversation));
 adminRouter.put('/users/:userId/notes', requireAdmin, asyncRoute(handleUpdateAdminNotes));
 

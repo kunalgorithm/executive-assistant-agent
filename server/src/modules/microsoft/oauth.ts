@@ -6,7 +6,7 @@ import { logger } from '@/utils/log';
 import { getPrimaryAccountForFeature, updateConnectedAccountAccessToken } from '@/modules/integrations/accounts';
 
 const MICROSOFT_AUTH_BASE = 'https://login.microsoftonline.com/common/oauth2/v2.0';
-const MICROSOFT_GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
+export const MICROSOFT_GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
 const TOKEN_EXPIRY_SKEW_MS = 60 * 1000;
 
 export const MICROSOFT_SCOPES = [

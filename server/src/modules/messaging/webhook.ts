@@ -139,7 +139,7 @@ async function processInboundMessageAsync(data: SendblueInboundPayload) {
     contactsConnected,
     tasksConnected,
     gmailConnected,
-    accounts: accountStatus.accounts,
+    connectedAccounts: accountStatus.accounts,
     restaurantsAvailable: !!env.GOOGLE_MAPS_API_KEY,
     connectLink,
   });

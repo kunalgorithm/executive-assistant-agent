@@ -89,6 +89,28 @@ export type ListTasksArgs = {
 
 const MAX_TASKS_RESULTS = 20;
 
+async function listGoogleTasksForAccount(account: TaskAccount, args: ListTasksArgs) {
+  const client = await clientForAccount(account);
+  if (!client) return { ok: false as const, error: 'not_connected' };
+
+  try {
+    const { data } = await client.tasks.list({
+      tasklist: DEFAULT_TASK_LIST,
+      showCompleted: args.includeCompleted ?? false,
+      showHidden: false,
+      maxResults: Math.min(args.maxResults ?? MAX_TASKS_RESULTS, MAX_TASKS_RESULTS),
+    });
+
+    return { ok: true as const, tasks: (data.items ?? []).map((task) => normalizeTask(task, account)) };
+  } catch (error) {
+    logger.error('[tasks] listTasks failed', {
+      accountId: account.id,
+      error: error instanceof Error ? error.message : error,
+    });
+    return { ok: false as const, error: 'api_error' };
+  }
+}
+
 export async function listTasks(userId: string, args: ListTasksArgs) {
   const accounts = await getAccountsForFeature(userId, 'tasks');
   if (accounts.length > 0) {
@@ -99,7 +121,10 @@ export async function listTasks(userId: string, args: ListTasksArgs) {
     );
     const tasks = results.flatMap((result) => (result.ok ? result.tasks : []));
     if (tasks.length > 0 || results.some((result) => result.ok)) {
-      return { ok: true as const, tasks: tasks.slice(0, Math.min(args.maxResults ?? MAX_TASKS_RESULTS, MAX_TASKS_RESULTS)) };
+      return {
+        ok: true as const,
+        tasks: tasks.slice(0, Math.min(args.maxResults ?? MAX_TASKS_RESULTS, MAX_TASKS_RESULTS)),
+      };
     }
     return { ok: false as const, error: 'api_error' };
   }
@@ -280,18 +305,15 @@ async function createMicrosoftTask(account: TaskAccount, args: CreateTaskArgs) {
   if (!context) return { ok: false as const, error: 'not_connected' };
 
   try {
-    const response = await fetch(
-      `${MICROSOFT_GRAPH_BASE}/me/todo/lists/${encodeURIComponent(context.listId)}/tasks`,
-      {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${context.accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: args.title,
-          body: args.notes ? { content: args.notes, contentType: 'text' } : undefined,
-          dueDateTime: args.due ? { dateTime: args.due, timeZone: 'UTC' } : undefined,
-        }),
-      },
-    );
+    const response = await fetch(`${MICROSOFT_GRAPH_BASE}/me/todo/lists/${encodeURIComponent(context.listId)}/tasks`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${context.accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: args.title,
+        body: args.notes ? { content: args.notes, contentType: 'text' } : undefined,
+        dueDateTime: args.due ? { dateTime: args.due, timeZone: 'UTC' } : undefined,
+      }),
+    });
     if (!response.ok) {
       logger.error('[tasks] Microsoft createTask failed', { accountId: account.id, status: response.status });
       return { ok: false as const, error: 'api_error' };

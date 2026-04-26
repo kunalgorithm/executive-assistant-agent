@@ -15,16 +15,19 @@ import {
   tasksFunctionDeclarations,
   restaurantFunctionDeclarations,
   gmailFunctionDeclarations,
+  accountFunctionDeclarations,
   CALENDAR_TOOL_NAMES,
   CONTACTS_TOOL_NAMES,
   RESTAURANT_TOOL_NAMES,
   TASKS_TOOL_NAMES,
   GMAIL_TOOL_NAMES,
+  ACCOUNT_TOOL_NAMES,
   dispatchCalendarToolCall,
   dispatchContactsToolCall,
   dispatchTasksToolCall,
   dispatchRestaurantToolCall,
   dispatchGmailToolCall,
+  dispatchAccountToolCall,
 } from '@/modules/google/tools';
 import { REMINDER_TOOL_NAMES, dispatchReminderToolCall, reminderFunctionDeclarations } from '@/modules/reminders/tools';
 
@@ -62,6 +65,15 @@ export type ConnectionState = {
   contactsConnected: boolean;
   tasksConnected: boolean;
   gmailConnected: boolean;
+  connectedAccounts: Array<{
+    provider: string;
+    email: string | null;
+    displayName: string | null;
+    calendarConnectedAt: Date | null;
+    contactsConnectedAt: Date | null;
+    tasksConnectedAt: Date | null;
+    emailConnectedAt: Date | null;
+  }>;
   restaurantsAvailable: boolean;
   connectLink: string | null;
 };
@@ -95,6 +107,7 @@ export async function generateSaylaResponse(
     ...(connection.tasksConnected ? tasksFunctionDeclarations : []),
     ...(connection.gmailConnected ? gmailFunctionDeclarations : []),
     ...(connection.restaurantsAvailable ? restaurantFunctionDeclarations : []),
+    ...accountFunctionDeclarations,
     ...reminderFunctionDeclarations,
   ];
   const tools = [{ functionDeclarations }];
@@ -169,9 +182,11 @@ export async function generateSaylaResponse(
                 ? await dispatchTasksToolCall(user.id, name, toolArgs)
                 : GMAIL_TOOL_NAMES.has(name)
                   ? await dispatchGmailToolCall(user.id, name, toolArgs)
-                  : RESTAURANT_TOOL_NAMES.has(name)
-                    ? await dispatchRestaurantToolCall(user.id, name, toolArgs)
-                    : { ok: false, error: `unknown_tool:${name}` };
+                  : ACCOUNT_TOOL_NAMES.has(name)
+                    ? await dispatchAccountToolCall(user.id, name)
+                    : RESTAURANT_TOOL_NAMES.has(name)
+                      ? await dispatchRestaurantToolCall(user.id, name, toolArgs)
+                      : { ok: false, error: `unknown_tool:${name}` };
         logger.info('[ai] Tool call executed', { userId: user.id, name: fc.name, ok: result.ok });
         responseParts.push({
           functionResponse: { name, response: result },

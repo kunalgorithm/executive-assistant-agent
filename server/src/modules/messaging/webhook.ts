@@ -17,6 +17,7 @@ import { runExclusive } from '@/utils/locks';
 import { Prisma } from '@/generated/prisma/client';
 import { timezoneFromPhone } from '@/utils/timezone';
 import { issueConnectLink } from '@/modules/google/oauth';
+import { getConnectedAccountStatus } from '@/modules/integrations/accounts';
 import { ANALYTICS_EVENTS, trackEvent } from '@/utils/analytics';
 import { pickReaction, generateSaylaResponse, getUserConversation } from './ai';
 import { WELCOME_MESSAGE, CONNECT_LINK_REFRESH_MESSAGE } from './prompts';
@@ -123,12 +124,13 @@ async function processInboundMessageAsync(data: SendblueInboundPayload) {
 
   // Gate: if calendar isn't connected, AI must redirect (not answer calendar questions).
   // We also regenerate the connect link so the AI can reference it directly.
-  const calendarConnected = user.calendarConnectedAt !== null;
-  const contactsConnected = user.contactsConnectedAt !== null;
-  const tasksConnected = user.tasksConnectedAt !== null;
-  const gmailConnected = user.gmailConnectedAt !== null;
-  const googleConnected = calendarConnected && contactsConnected && tasksConnected && gmailConnected;
-  const connectLink = googleConnected ? null : await issueConnectLink(user.id);
+  const accountStatus = await getConnectedAccountStatus(user.id);
+  const calendarConnected = accountStatus.calendarConnected || user.calendarConnectedAt !== null;
+  const contactsConnected = accountStatus.contactsConnected || user.contactsConnectedAt !== null;
+  const tasksConnected = accountStatus.tasksConnected || user.tasksConnectedAt !== null;
+  const gmailConnected = accountStatus.gmailConnected || user.gmailConnectedAt !== null;
+  const ecosystemConnected = calendarConnected && contactsConnected && tasksConnected && gmailConnected;
+  const connectLink = ecosystemConnected ? null : await issueConnectLink(user.id);
 
   await sendTypingIndicator(data.from_number);
 
@@ -137,6 +139,7 @@ async function processInboundMessageAsync(data: SendblueInboundPayload) {
     contactsConnected,
     tasksConnected,
     gmailConnected,
+    connectedAccounts: accountStatus.accounts,
     restaurantsAvailable: !!env.GOOGLE_MAPS_API_KEY,
     connectLink,
   });

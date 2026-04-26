@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Calendar, CheckCircle2, BookUser, ListTodo } from 'lucide-react';
+import { Calendar, CheckCircle2, BookUser, ListTodo, Mail } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -43,17 +43,19 @@ export default function ConnectPage() {
     );
   }
 
-  const startUrl = `${API_BASE}/api/auth/google/start?t=${encodeURIComponent(token)}`;
+  const encodedToken = encodeURIComponent(token);
+  const googleStartUrl = `${API_BASE}/api/auth/google/start?t=${encodedToken}`;
+  const microsoftStartUrl = `${API_BASE}/api/auth/microsoft/start?t=${encodedToken}`;
 
   return (
     <ConnectLayout>
       <p className="text-xs font-semibold text-primary uppercase tracking-[0.25em] mb-5">step 1 of 1</p>
 
-      <h1 className="text-3xl font-extrabold tracking-tight leading-tight mb-4">connect your google account</h1>
+      <h1 className="text-3xl font-extrabold tracking-tight leading-tight mb-4">connect your accounts</h1>
 
       <p className="text-muted-foreground leading-relaxed mb-8">
-        i'll be able to manage your calendar, look up your contacts, and manage your tasks. you'll still confirm before
-        anything gets written. gmail comes in a future update.
+        connect google or microsoft so i can work with your calendar, email, contacts, and tasks. you can come back to
+        this link to add more accounts.
       </p>
 
       <ul className="space-y-2 mb-10">
@@ -67,7 +69,11 @@ export default function ConnectPage() {
         </li>
         <li className="flex items-start gap-3 text-sm text-muted-foreground">
           <ListTodo className="w-4 h-4 mt-0.5 text-primary shrink-0" />
-          <span>read and write google tasks</span>
+          <span>read and write Google Tasks or Microsoft To Do</span>
+        </li>
+        <li className="flex items-start gap-3 text-sm text-muted-foreground">
+          <Mail className="w-4 h-4 mt-0.5 text-primary shrink-0" />
+          <span>read-only access to Gmail or Outlook email</span>
         </li>
         <li className="flex items-start gap-3 text-sm text-muted-foreground">
           <CheckCircle2 className="w-4 h-4 mt-0.5 text-primary shrink-0" />
@@ -75,17 +81,26 @@ export default function ConnectPage() {
         </li>
         <li className="flex items-start gap-3 text-sm text-muted-foreground">
           <CheckCircle2 className="w-4 h-4 mt-0.5 text-primary shrink-0" />
-          <span>revoke anytime from your google account</span>
+          <span>revoke anytime from your provider account settings</span>
         </li>
       </ul>
 
-      <a
-        href={startUrl}
-        className="inline-flex items-center gap-2 h-12 px-6 rounded-xl bg-foreground text-background text-sm font-semibold tracking-tight hover:opacity-90 active:scale-[0.98] transition no-underline"
-      >
-        <Calendar className="w-4 h-4" />
-        connect google account
-      </a>
+      <div className="flex flex-col gap-3">
+        <a
+          href={googleStartUrl}
+          className="inline-flex items-center justify-center gap-2 h-12 px-6 rounded-xl bg-foreground text-background text-sm font-semibold tracking-tight hover:opacity-90 active:scale-[0.98] transition no-underline"
+        >
+          <Calendar className="w-4 h-4" />
+          connect google account
+        </a>
+        <a
+          href={microsoftStartUrl}
+          className="inline-flex items-center justify-center gap-2 h-12 px-6 rounded-xl border border-border text-foreground text-sm font-semibold tracking-tight hover:bg-muted active:scale-[0.98] transition no-underline"
+        >
+          <Calendar className="w-4 h-4" />
+          connect microsoft account
+        </a>
+      </div>
     </ConnectLayout>
   );
 }

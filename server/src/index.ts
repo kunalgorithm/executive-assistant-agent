@@ -13,6 +13,8 @@ import { adminRouter } from '@/modules/admin';
 import { startCronJobs } from '@/modules/cron';
 import { googleAuthRouter } from '@/modules/google';
 import { messagingRouter } from '@/modules/messaging';
+import { microsoftAuthRouter } from '@/modules/microsoft';
+import { integrationsRouter } from '@/modules/integrations';
 
 const app = express();
 app.disable('x-powered-by');
@@ -45,7 +47,9 @@ app.get('/', (_req, res) => {
 
 app.use('/api/messaging', messagingRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/integrations', integrationsRouter);
 app.use('/api/auth/google', googleAuthRouter);
+app.use('/api/auth/microsoft', microsoftAuthRouter);
 
 app.use(globalErrorHandlerMiddleware);
 

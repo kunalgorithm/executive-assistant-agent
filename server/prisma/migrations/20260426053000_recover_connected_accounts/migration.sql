@@ -46,6 +46,80 @@ ALTER TABLE "connected_accounts"
   ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMP(3);
 
+DO $$
+DECLARE
+  provider_type TEXT;
+BEGIN
+  SELECT udt_name
+  INTO provider_type
+  FROM information_schema.columns
+  WHERE table_schema = 'public'
+    AND table_name = 'connected_accounts'
+    AND column_name = 'provider';
+
+  IF provider_type IS DISTINCT FROM 'ConnectedAccountProvider' THEN
+    IF EXISTS (
+      SELECT 1
+      FROM "connected_accounts"
+      WHERE LOWER("provider"::TEXT) NOT IN ('google', 'microsoft')
+    ) THEN
+      RAISE EXCEPTION 'Cannot recover connected_accounts with unsupported provider values';
+    END IF;
+
+    ALTER TABLE "connected_accounts"
+      ALTER COLUMN "provider" DROP DEFAULT,
+      ALTER COLUMN "provider" TYPE "ConnectedAccountProvider"
+      USING LOWER("provider"::TEXT)::"ConnectedAccountProvider";
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'connected_accounts'
+      AND column_name = 'external_account_id'
+  ) THEN
+    UPDATE "connected_accounts"
+    SET "provider_account_id" = COALESCE("provider_account_id", "external_account_id")
+    WHERE "provider_account_id" IS NULL;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'connected_accounts'
+      AND column_name = 'account_email'
+  ) THEN
+    UPDATE "connected_accounts"
+    SET "email" = COALESCE("email", "account_email")
+    WHERE "email" IS NULL;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'connected_accounts'
+      AND column_name = 'account_name'
+  ) THEN
+    UPDATE "connected_accounts"
+    SET "display_name" = COALESCE("display_name", "account_name")
+    WHERE "display_name" IS NULL;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'connected_accounts'
+      AND column_name = 'expires_at'
+  ) THEN
+    UPDATE "connected_accounts"
+    SET "access_token_expires_at" = COALESCE("access_token_expires_at", "expires_at")
+    WHERE "access_token_expires_at" IS NULL;
+  END IF;
+END $$;
+
 UPDATE "connected_accounts"
 SET
   "id" = COALESCE("id", md5(random()::TEXT || clock_timestamp()::TEXT)),

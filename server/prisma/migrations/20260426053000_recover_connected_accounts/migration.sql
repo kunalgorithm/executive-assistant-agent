@@ -84,6 +84,9 @@ BEGIN
     UPDATE "connected_accounts"
     SET "provider_account_id" = COALESCE("provider_account_id", "external_account_id")
     WHERE "provider_account_id" IS NULL;
+
+    ALTER TABLE "connected_accounts"
+      ALTER COLUMN "external_account_id" DROP NOT NULL;
   END IF;
 
   IF EXISTS (

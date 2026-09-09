@@ -25,33 +25,50 @@ import { WELCOME_MESSAGE, CONNECT_LINK_REFRESH_MESSAGE } from './prompts';
 const CONNECT_KEYWORD = /^(connect|link|reconnect)$/i;
 
 export async function handleInboundMessageWebhook(req: Request, res: Response) {
+  const requestId = res.locals.webhookRequestId as string;
   const { data, errors } = getZodErrors(sendblueInboundWebhookSchema, req.body);
   if (!data || errors) {
+    logger.warn('[webhook] Invalid inbound payload', { requestId, errors });
     res.status(statusCodes.BAD_REQUEST).json({ data: null, errors: { webhook: 'Invalid webhook payload' } });
     return;
   }
 
   res.sendStatus(statusCodes.OK);
 
+  const context = { requestId, messageHandle: data.message_handle, fromNumberLast4: data.from_number.slice(-4) };
   if (env.OWNER_PHONE_NUMBER && data.from_number !== env.OWNER_PHONE_NUMBER) {
-    logger.warn('[webhook] Rejected inbound from non-owner number', { fromNumber: data.from_number });
+    logger.warn('[webhook] Rejected inbound from non-owner number', {
+      ...context,
+      ownerNumberLast4: env.OWNER_PHONE_NUMBER.slice(-4),
+    });
     return;
   }
 
+  logger.info('[webhook] Inbound message accepted; queued for processing', {
+    ...context,
+    contentLength: data.content?.length ?? 0,
+    hasMedia: !!data.media_url,
+    service: data.service,
+    isOutbound: data.is_outbound,
+  });
+
   runExclusive(data.from_number, async () => {
+    const startedAt = Date.now();
+    logger.info('[webhook] Message processing started', context);
     try {
-      await processInboundMessageAsync(data);
+      await processInboundMessageAsync(data, requestId);
+      logger.info('[webhook] Message processing finished', { ...context, durationMs: Date.now() - startedAt });
     } catch (error) {
       logger.error('[webhook] FATAL: message processing threw unhandled error', {
-        fromNumber: data.from_number,
-        messageHandle: data.message_handle,
+        ...context,
         error: error instanceof Error ? error.message : error,
       });
     }
   });
 }
 
-async function processInboundMessageAsync(data: SendblueInboundPayload) {
+async function processInboundMessageAsync(data: SendblueInboundPayload, requestId: string) {
+  const context = { requestId, messageHandle: data.message_handle };
   let user = await db.user.findUnique({ where: { phoneNumber: data.from_number } });
 
   try {
@@ -66,10 +83,14 @@ async function processInboundMessageAsync(data: SendblueInboundPayload) {
       },
     });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return;
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      logger.info('[webhook] Duplicate inbound message ignored', context);
+      return;
+    }
     throw error;
   }
 
+  logger.info('[webhook] Inbound message saved', { ...context, userId: user?.id ?? null });
   trackEvent(ANALYTICS_EVENTS.inbound_message_received, user?.id ?? undefined);
 
   let isNewUser = false;
@@ -84,26 +105,34 @@ async function processInboundMessageAsync(data: SendblueInboundPayload) {
     await db.user.update({ where: { id: user.id }, data: { lastMessageAt: new Date() } });
   }
 
-  if (!user.isActive) return;
+  if (!user.isActive) {
+    logger.info('[webhook] Inactive user; skipping response', { ...context, userId: user.id });
+    return;
+  }
 
   // First-touch onboarding: deterministic welcome + connect link. No AI.
   if (isNewUser) {
+    logger.info('[webhook] New user; sending onboarding response', { ...context, userId: user.id });
     const link = await issueConnectLink(user.id);
     await sendMultipartOutbound(WELCOME_MESSAGE(link), data.from_number, user.id);
     return;
   }
 
-  if (!data.content || data.content.trim().length === 0) return;
+  if (!data.content || data.content.trim().length === 0) {
+    logger.info('[webhook] Empty message text; skipping response', { ...context, userId: user.id });
+    return;
+  }
   const trimmed = data.content.trim();
 
   // Tapback reactions arrive as normal inbound webhooks — ignore them.
   if (/^(Liked|Loved|Disliked|Laughed at|Emphasized|Questioned) "/.test(trimmed)) {
-    logger.info('[process] Ignoring tapback reaction', { userId: user.id, content: data.content });
+    logger.info('[webhook] Ignoring tapback reaction', { ...context, userId: user.id });
     return;
   }
 
   // Explicit "connect" / "link" / "reconnect" — regenerate link, skip AI.
   if (CONNECT_KEYWORD.test(trimmed)) {
+    logger.info('[webhook] Connect keyword; sending connection link', { ...context, userId: user.id });
     const link = await issueConnectLink(user.id);
     await sendAndSaveOutbound(CONNECT_LINK_REFRESH_MESSAGE(link), data.from_number, user.id);
     return;
@@ -134,6 +163,7 @@ async function processInboundMessageAsync(data: SendblueInboundPayload) {
 
   await sendTypingIndicator(data.from_number);
 
+  logger.info('[webhook] Generating AI response', { ...context, userId: user.id });
   const aiResponse = await generateSaylaResponse(conversationHistory, user, {
     calendarConnected,
     contactsConnected,
@@ -144,6 +174,7 @@ async function processInboundMessageAsync(data: SendblueInboundPayload) {
     connectLink,
   });
   if (!aiResponse) {
+    logger.warn('[webhook] AI returned no response; sending fallback', { ...context, userId: user.id });
     trackEvent(ANALYTICS_EVENTS.ai_response_failed, user.id);
     await sendAndSaveOutbound(
       'sorry — something went sideways on my end. try again in a sec?',
@@ -153,17 +184,30 @@ async function processInboundMessageAsync(data: SendblueInboundPayload) {
     return;
   }
 
+  logger.info('[webhook] AI response ready; attempting reply delivery', {
+    ...context,
+    userId: user.id,
+    responseLength: aiResponse.length,
+  });
   await sendMultipartOutbound(aiResponse, data.from_number, user.id);
 }
 
 export async function handleStatusCallbackWebhook(req: Request, res: Response) {
   const { data, errors } = getZodErrors(sendblueStatusCallbackSchema, req.body);
   if (!data || errors) {
+    logger.warn('[webhook] Invalid status callback payload', { requestId: res.locals.webhookRequestId, errors });
     res.status(statusCodes.BAD_REQUEST).json({ data: null, errors: { webhook: 'Invalid status callback' } });
     return;
   }
 
   res.sendStatus(statusCodes.OK);
+
+  logger.info('[webhook] Delivery status received', {
+    requestId: res.locals.webhookRequestId,
+    messageHandle: data.message_handle,
+    status: data.status,
+    errorCode: data.error_code,
+  });
 
   try {
     const message = await db.channelMessage.findUnique({ where: { messageHandle: data.message_handle } });

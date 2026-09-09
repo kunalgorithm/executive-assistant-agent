@@ -10,15 +10,46 @@ import { handleInboundMessageWebhook, handleStatusCallbackWebhook } from './webh
 
 const messagingRouter: Router = Router();
 
+// Mounted before body parsing and rate limiting so even rejected requests are visible.
+export function logMessagingWebhookRequest(req: Request, res: Response, next: NextFunction) {
+  const requestId = crypto.randomUUID();
+  const startedAt = Date.now();
+  const context = { requestId, method: req.method, path: req.originalUrl.split('?')[0] };
+  res.locals.webhookRequestId = requestId;
+
+  logger.info('[webhook] HTTP request received', {
+    ...context,
+    contentType: req.get('content-type') ?? null,
+    hasSigningSecret: typeof req.headers['sb-signing-secret'] === 'string',
+  });
+
+  res.on('finish', () => {
+    logger.info('[webhook] HTTP response sent', {
+      ...context,
+      statusCode: res.statusCode,
+      durationMs: Date.now() - startedAt,
+    });
+  });
+
+  next();
+}
+
 function validateWebhookSecret(req: Request, res: Response, next: NextFunction) {
   const receivedSecret = req.headers['sb-signing-secret'];
+  const receivedBuffer = typeof receivedSecret === 'string' ? Buffer.from(receivedSecret) : null;
+  const expectedBuffer = Buffer.from(env.SENDBLUE_WEBHOOK_SECRET);
 
   if (
-    !receivedSecret ||
-    typeof receivedSecret !== 'string' ||
-    !crypto.timingSafeEqual(Buffer.from(receivedSecret), Buffer.from(env.SENDBLUE_WEBHOOK_SECRET))
+    !receivedBuffer ||
+    receivedBuffer.length === 0 ||
+    receivedBuffer.length !== expectedBuffer.length ||
+    !crypto.timingSafeEqual(receivedBuffer, expectedBuffer)
   ) {
-    logger.warn('[webhook-auth] Secret mismatch', { ip: req.ip });
+    logger.warn('[webhook] Authentication rejected', {
+      requestId: res.locals.webhookRequestId,
+      reason: receivedBuffer ? 'invalid_signing_secret' : 'missing_signing_secret',
+      ip: req.ip,
+    });
     res.sendStatus(statusCodes.UNAUTHORIZED);
     return;
   }

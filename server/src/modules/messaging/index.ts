@@ -6,7 +6,16 @@ import { env } from '@/utils/env';
 import { logger } from '@/utils/log';
 import { asyncRoute } from '@/utils/error';
 import { statusCodes } from '@/utils/http';
-import { handleInboundMessageWebhook, handleStatusCallbackWebhook } from './webhook';
+import { getLinqClient } from '@/utils/linq';
+import {
+  handleInboundMessageWebhook,
+  handleStatusCallbackWebhook,
+  acceptInboundMessage,
+  acceptStatusCallback,
+} from './webhook';
+import { createLinqWebhookHandler } from './linq-webhook';
+
+export { linqWebhookBodyParser } from './linq-webhook';
 
 const messagingRouter: Router = Router();
 
@@ -21,6 +30,7 @@ export function logMessagingWebhookRequest(req: Request, res: Response, next: Ne
     ...context,
     contentType: req.get('content-type') ?? null,
     hasSigningSecret: typeof req.headers['sb-signing-secret'] === 'string',
+    hasLinqSignature: typeof req.headers['webhook-signature'] === 'string',
   });
 
   res.on('finish', () => {
@@ -56,7 +66,41 @@ function validateWebhookSecret(req: Request, res: Response, next: NextFunction) 
   next();
 }
 
-messagingRouter.post('/webhook/inbound', validateWebhookSecret, asyncRoute(handleInboundMessageWebhook));
-messagingRouter.post('/webhook/status', validateWebhookSecret, asyncRoute(handleStatusCallbackWebhook));
+function requireProvider(provider: 'linq' | 'sendblue') {
+  return (_req: Request, res: Response, next: NextFunction) => {
+    if (env.MESSAGING_PROVIDER !== provider) {
+      logger.warn('[webhook] Messaging provider is disabled', { requestId: res.locals.webhookRequestId, provider });
+      res.sendStatus(503);
+      return;
+    }
+    next();
+  };
+}
+
+messagingRouter.post(
+  '/webhook/inbound',
+  requireProvider('sendblue'),
+  validateWebhookSecret,
+  asyncRoute(handleInboundMessageWebhook),
+);
+messagingRouter.post(
+  '/webhook/status',
+  requireProvider('sendblue'),
+  validateWebhookSecret,
+  asyncRoute(handleStatusCallbackWebhook),
+);
+messagingRouter.post(
+  '/webhook/linq',
+  requireProvider('linq'),
+  asyncRoute(
+    createLinqWebhookHandler({
+      getClient: getLinqClient,
+      lineNumber: env.LINQ_FROM_NUMBER,
+      logger,
+      onInbound: acceptInboundMessage,
+      onStatus: acceptStatusCallback,
+    }),
+  ),
+);
 
 export { messagingRouter };

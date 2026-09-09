@@ -5,6 +5,7 @@ import {
   mapSendblueStatus,
   cleanSendblueData,
   type SendblueInboundPayload,
+  type SendblueStatusPayload,
   sendblueInboundWebhookSchema,
   sendblueStatusCallbackSchema,
 } from './helpers';
@@ -33,6 +34,15 @@ export async function handleInboundMessageWebhook(req: Request, res: Response) {
     return;
   }
 
+  acceptInboundMessage(data, res);
+}
+
+export function acceptInboundMessage(
+  data: SendblueInboundPayload,
+  res: Response,
+  providerMetadata?: Prisma.InputJsonObject,
+) {
+  const requestId = res.locals.webhookRequestId as string;
   res.sendStatus(statusCodes.OK);
 
   const context = { requestId, messageHandle: data.message_handle, fromNumberLast4: data.from_number.slice(-4) };
@@ -56,7 +66,7 @@ export async function handleInboundMessageWebhook(req: Request, res: Response) {
     const startedAt = Date.now();
     logger.info('[webhook] Message processing started', context);
     try {
-      await processInboundMessageAsync(data, requestId);
+      await processInboundMessageAsync(data, requestId, providerMetadata);
       logger.info('[webhook] Message processing finished', { ...context, durationMs: Date.now() - startedAt });
     } catch (error) {
       logger.error('[webhook] FATAL: message processing threw unhandled error', {
@@ -67,7 +77,11 @@ export async function handleInboundMessageWebhook(req: Request, res: Response) {
   });
 }
 
-async function processInboundMessageAsync(data: SendblueInboundPayload, requestId: string) {
+async function processInboundMessageAsync(
+  data: SendblueInboundPayload,
+  requestId: string,
+  providerMetadata?: Prisma.InputJsonObject,
+) {
   const context = { requestId, messageHandle: data.message_handle };
   let user = await db.user.findUnique({ where: { phoneNumber: data.from_number } });
 
@@ -78,7 +92,7 @@ async function processInboundMessageAsync(data: SendblueInboundPayload, requestI
         messageHandle: data.message_handle,
         content: data.content || null,
         mediaUrl: data.media_url || null,
-        sendblueData: cleanSendblueData(data),
+        sendblueData: providerMetadata ?? cleanSendblueData(data),
         sentAt: data.date_sent ? new Date(data.date_sent) : new Date(),
       },
     });
@@ -200,6 +214,10 @@ export async function handleStatusCallbackWebhook(req: Request, res: Response) {
     return;
   }
 
+  await acceptStatusCallback(data, res);
+}
+
+export async function acceptStatusCallback(data: SendblueStatusPayload, res: Response) {
   res.sendStatus(statusCodes.OK);
 
   logger.info('[webhook] Delivery status received', {

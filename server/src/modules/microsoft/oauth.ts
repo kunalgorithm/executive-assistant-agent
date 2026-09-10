@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 
 import { db } from '@/utils/db';
-import { env } from '@/utils/env';
+import { env, getPublicApiUrl } from '@/utils/env';
 import { logger } from '@/utils/log';
 import { getPrimaryAccountForFeature, updateConnectedAccountAccessToken } from '@/modules/integrations/accounts';
 
@@ -49,7 +49,11 @@ type MicrosoftProfile = {
 };
 
 export function microsoftOAuthConfigured() {
-  return !!env.MICROSOFT_CLIENT_ID && !!env.MICROSOFT_CLIENT_SECRET && !!env.MICROSOFT_REDIRECT_URI;
+  return !!env.MICROSOFT_CLIENT_ID && !!env.MICROSOFT_CLIENT_SECRET;
+}
+
+function redirectUri() {
+  return env.MICROSOFT_REDIRECT_URI || `${getPublicApiUrl()}/api/auth/microsoft/callback`;
 }
 
 export function buildMicrosoftConsentUrl(state: string): string | null {
@@ -58,7 +62,7 @@ export function buildMicrosoftConsentUrl(state: string): string | null {
   const params = new URLSearchParams({
     client_id: env.MICROSOFT_CLIENT_ID!,
     response_type: 'code',
-    redirect_uri: env.MICROSOFT_REDIRECT_URI!,
+    redirect_uri: redirectUri(),
     response_mode: 'query',
     scope: MICROSOFT_SCOPES.join(' '),
     state,
@@ -78,7 +82,7 @@ export async function exchangeMicrosoftCodeForTokens(code: string): Promise<Micr
       client_id: env.MICROSOFT_CLIENT_ID!,
       client_secret: env.MICROSOFT_CLIENT_SECRET!,
       code,
-      redirect_uri: env.MICROSOFT_REDIRECT_URI!,
+      redirect_uri: redirectUri(),
       grant_type: 'authorization_code',
       scope: MICROSOFT_SCOPES.join(' '),
     }),
@@ -157,7 +161,7 @@ async function refreshMicrosoftAccessToken(accountId: string, refreshToken: stri
       client_id: env.MICROSOFT_CLIENT_ID!,
       client_secret: env.MICROSOFT_CLIENT_SECRET!,
       refresh_token: refreshToken,
-      redirect_uri: env.MICROSOFT_REDIRECT_URI!,
+      redirect_uri: redirectUri(),
       grant_type: 'refresh_token',
       scope: MICROSOFT_SCOPES.join(' '),
     }),

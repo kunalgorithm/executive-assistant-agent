@@ -4,8 +4,22 @@ import { asyncRoute } from '@/utils/error';
 import { statusCodes } from '@/utils/http';
 import { findUserByConnectToken } from '@/modules/google/oauth';
 import { getConnectedAccounts } from './accounts';
+import { env } from '@/utils/env';
+import { createConnectPageHandler } from './connect';
 
 const integrationsRouter: Router = Router();
+const accountConnectionRouter: Router = Router();
+
+accountConnectionRouter.get(
+  '/',
+  asyncRoute(
+    createConnectPageHandler({
+      findUserByToken: findUserByConnectToken,
+      googleEnabled: !!env.GOOGLE_CLIENT_ID && !!env.GOOGLE_CLIENT_SECRET,
+      microsoftEnabled: !!env.MICROSOFT_CLIENT_ID && !!env.MICROSOFT_CLIENT_SECRET,
+    }),
+  ),
+);
 
 integrationsRouter.get(
   '/accounts',
@@ -27,4 +41,4 @@ integrationsRouter.get(
   }),
 );
 
-export { integrationsRouter };
+export { integrationsRouter, accountConnectionRouter };

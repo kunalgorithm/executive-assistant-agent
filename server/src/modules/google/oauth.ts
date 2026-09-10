@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { google } from 'googleapis';
 
 import { db } from '@/utils/db';
-import { env } from '@/utils/env';
+import { env, getPublicApiUrl } from '@/utils/env';
 import { logger } from '@/utils/log';
 import { getPrimaryAccountForFeature, updateConnectedAccountAccessToken } from '@/modules/integrations/accounts';
 
@@ -26,10 +26,11 @@ export const GOOGLE_SCOPES = [
 export type GoogleCredentialsMissingError = { kind: 'missing-google-env' };
 
 function getOAuthClient() {
-  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET || !env.GOOGLE_REDIRECT_URI) {
+  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
     return null;
   }
-  return new google.auth.OAuth2(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.GOOGLE_REDIRECT_URI);
+  const redirectUri = env.GOOGLE_REDIRECT_URI || `${getPublicApiUrl()}/api/auth/google/callback`;
+  return new google.auth.OAuth2(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, redirectUri);
 }
 
 export function buildConsentUrl(state: string): string | null {
@@ -218,6 +219,7 @@ const CONNECT_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
  * the full URL they can tap in iMessage to kick off the OAuth flow.
  */
 export async function issueConnectLink(userId: string): Promise<string> {
+  const baseUrl = getPublicApiUrl();
   const token = crypto.randomBytes(24).toString('base64url');
   const expiresAt = new Date(Date.now() + CONNECT_TOKEN_TTL_MS);
 
@@ -226,10 +228,7 @@ export async function issueConnectLink(userId: string): Promise<string> {
     data: { connectToken: token, connectTokenExpiresAt: expiresAt },
   });
 
-  // Link points at the public web frontend (CLIENT_URL), which hosts /connect.
-  // In local dev, set CLIENT_URL to the deployed staging frontend (ea.getsayla.com)
-  // so the link in iMessage is tappable from the owner's phone.
-  return `${env.CLIENT_URL.split(',')[0]!.trim().replace(/\/$/, '')}/connect?t=${token}`;
+  return `${baseUrl}/connect?t=${encodeURIComponent(token)}`;
 }
 
 export async function findUserByConnectToken(token: string) {

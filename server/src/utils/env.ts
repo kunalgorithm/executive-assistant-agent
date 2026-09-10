@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { z } from 'zod';
+import { resolvePublicApiUrl } from './public-url';
 
 const envSchema = z
   .object({
@@ -14,6 +15,9 @@ const envSchema = z
       .default('8000')
       .transform((val) => parseInt(val, 10)),
     CLIENT_URL: z.url(),
+    // Account connection is hosted by this API, independently of the web SPA.
+    PUBLIC_API_URL: z.string().default(''),
+    RENDER_EXTERNAL_URL: z.string().default(''),
 
     LOG_LEVEL: z.enum(['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly']).default('info'),
 
@@ -71,3 +75,7 @@ const envSchema = z
 
 export const env = envSchema.parse(process.env);
 export const isProduction = env.NODE_ENV === 'production';
+
+export function getPublicApiUrl() {
+  return resolvePublicApiUrl(env);
+}

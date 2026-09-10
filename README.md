@@ -122,6 +122,8 @@ The landing page expands Sayla beyond a narrow work-only assistant. To make the 
 4. For write actions (send email, create/cancel event), the assistant proposes and waits for "yes".
 5. Reply is sent back to iMessage.
 
+Account connection is optional and starts only when the user asks (for example, `connect my calendar`). The API hosts the connection pages; ordinary messages and Sayla reminders work without a Google or Microsoft account. See [account connection setup](docs/account-connections.md).
+
 ---
 
 ## Product Principles
@@ -268,6 +270,10 @@ DATABASE_URL="postgresql://..."
 
 # Client
 CLIENT_URL="https://your-frontend.com"
+
+# Public API origin for account connection pages (optional on Render)
+# Defaults to Render's RENDER_EXTERNAL_URL; does not use CLIENT_URL.
+PUBLIC_API_URL="https://your-api.com"
 
 # LLM
 GEMINI_API_KEY="..."

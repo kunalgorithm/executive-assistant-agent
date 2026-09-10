@@ -1,13 +1,16 @@
 import type { Request, Response } from 'express';
 
 import { db } from '@/utils/db';
-import { env } from '@/utils/env';
 import { logger } from '@/utils/log';
 import { statusCodes } from '@/utils/http';
 import { sendAndSaveOutbound } from '@/modules/messaging/send';
 import { CALENDAR_CONNECTED_MESSAGE } from '@/modules/messaging/prompts';
 import { upsertConnectedAccount } from '@/modules/integrations/accounts';
-import { renderIntegrationErrorPage } from '@/modules/integrations/http';
+import {
+  renderIntegrationErrorPage,
+  renderIntegrationSuccessPage,
+  renderIntegrationCancelledPage,
+} from '@/modules/integrations/http';
 import { fetchMicrosoftPrimaryCalendarTimezone } from './calendar';
 import {
   buildMicrosoftConsentUrl,
@@ -17,10 +20,6 @@ import {
   verifyMicrosoftOAuthState,
 } from './oauth';
 import { findUserByConnectToken } from '@/modules/google/oauth';
-
-function webBase(): string {
-  return env.CLIENT_URL.split(',')[0]!.trim().replace(/\/$/, '');
-}
 
 export async function handleMicrosoftStart(req: Request, res: Response) {
   const token = typeof req.query.t === 'string' ? req.query.t : null;
@@ -65,7 +64,7 @@ export async function handleMicrosoftStart(req: Request, res: Response) {
     return;
   }
 
-  res.redirect(url);
+  res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }).redirect(url);
 }
 
 export async function handleMicrosoftCallback(req: Request, res: Response) {
@@ -75,7 +74,7 @@ export async function handleMicrosoftCallback(req: Request, res: Response) {
 
   if (errorParam) {
     logger.warn('[microsoft-oauth] User denied consent or flow errored', { errorParam });
-    res.redirect(`${webBase()}/connect?denied=1&provider=microsoft`);
+    renderIntegrationCancelledPage(res);
     return;
   }
 
@@ -111,7 +110,11 @@ export async function handleMicrosoftCallback(req: Request, res: Response) {
   });
 
   if (!existing) {
-    renderIntegrationErrorPage(res, 'Unknown account', 'We could not find your account. Text the assistant and try again.');
+    renderIntegrationErrorPage(
+      res,
+      'Unknown account',
+      'We could not find your account. Text the assistant and try again.',
+    );
     return;
   }
 
@@ -158,5 +161,5 @@ export async function handleMicrosoftCallback(req: Request, res: Response) {
     );
   }
 
-  res.redirect(`${webBase()}/connect/success?provider=microsoft`);
+  renderIntegrationSuccessPage(res, 'microsoft');
 }

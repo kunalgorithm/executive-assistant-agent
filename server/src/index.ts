@@ -14,7 +14,7 @@ import { startCronJobs } from '@/modules/cron';
 import { googleAuthRouter } from '@/modules/google';
 import { messagingRouter, logMessagingWebhookRequest, linqWebhookBodyParser } from '@/modules/messaging';
 import { microsoftAuthRouter } from '@/modules/microsoft';
-import { integrationsRouter } from '@/modules/integrations';
+import { integrationsRouter, accountConnectionRouter } from '@/modules/integrations';
 
 const app = express();
 app.disable('x-powered-by');
@@ -50,6 +50,7 @@ app.get('/', (_req, res) => {
 app.use('/api/messaging', messagingRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/integrations', integrationsRouter);
+app.use('/connect', accountConnectionRouter);
 app.use('/api/auth/google', googleAuthRouter);
 app.use('/api/auth/microsoft', microsoftAuthRouter);
 

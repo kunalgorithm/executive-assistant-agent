@@ -21,9 +21,7 @@ import { issueConnectLink } from '@/modules/google/oauth';
 import { getConnectedAccountStatus } from '@/modules/integrations/accounts';
 import { ANALYTICS_EVENTS, trackEvent } from '@/utils/analytics';
 import { pickReaction, generateSaylaResponse, getUserConversation } from './ai';
-import { WELCOME_MESSAGE, CONNECT_LINK_REFRESH_MESSAGE } from './prompts';
-
-const CONNECT_KEYWORD = /^(connect|link|reconnect)$/i;
+import { getOnboardingReply } from './connection-policy';
 
 export async function handleInboundMessageWebhook(req: Request, res: Response) {
   const requestId = res.locals.webhookRequestId as string;
@@ -113,6 +111,12 @@ async function processInboundMessageAsync(
     user = await db.user.create({
       data: { timezone, lastMessageAt: new Date(), phoneNumber: data.from_number },
     });
+    // The first message was saved before the user existed. Include it in history
+    // so a first-turn question or reminder reaches the AI instead of being lost.
+    await db.channelMessage.update({
+      where: { messageHandle: data.message_handle },
+      data: { fromUserId: user.id },
+    });
     isNewUser = true;
     trackEvent(ANALYTICS_EVENTS.user_created_via_sms, user.id, { timezone, fromNumber: data.from_number });
   } else {
@@ -121,14 +125,6 @@ async function processInboundMessageAsync(
 
   if (!user.isActive) {
     logger.info('[webhook] Inactive user; skipping response', { ...context, userId: user.id });
-    return;
-  }
-
-  // First-touch onboarding: deterministic welcome + connect link. No AI.
-  if (isNewUser) {
-    logger.info('[webhook] New user; sending onboarding response', { ...context, userId: user.id });
-    const link = await issueConnectLink(user.id);
-    await sendMultipartOutbound(WELCOME_MESSAGE(link), data.from_number, user.id);
     return;
   }
 
@@ -144,11 +140,13 @@ async function processInboundMessageAsync(
     return;
   }
 
-  // Explicit "connect" / "link" / "reconnect" — regenerate link, skip AI.
-  if (CONNECT_KEYWORD.test(trimmed)) {
-    logger.info('[webhook] Connect keyword; sending connection link', { ...context, userId: user.id });
-    const link = await issueConnectLink(user.id);
-    await sendAndSaveOutbound(CONNECT_LINK_REFRESH_MESSAGE(link), data.from_number, user.id);
+  const onboardingReply = await getOnboardingReply({
+    text: trimmed,
+    isNewUser,
+    issueLink: () => issueConnectLink(user.id),
+  });
+  if (onboardingReply) {
+    await sendAndSaveOutbound(onboardingReply, data.from_number, user.id);
     return;
   }
 
@@ -165,15 +163,13 @@ async function processInboundMessageAsync(
 
   const conversationHistory = await getUserConversation(user.id);
 
-  // Gate: if calendar isn't connected, AI must redirect (not answer calendar questions).
-  // We also regenerate the connect link so the AI can reference it directly.
+  // Missing accounts limit the available tools, not access to the assistant.
+  // Ordinary turns must not issue or rotate connection tokens.
   const accountStatus = await getConnectedAccountStatus(user.id);
   const calendarConnected = accountStatus.calendarConnected || user.calendarConnectedAt !== null;
   const contactsConnected = accountStatus.contactsConnected || user.contactsConnectedAt !== null;
   const tasksConnected = accountStatus.tasksConnected || user.tasksConnectedAt !== null;
   const gmailConnected = accountStatus.gmailConnected || user.gmailConnectedAt !== null;
-  const ecosystemConnected = calendarConnected && contactsConnected && tasksConnected && gmailConnected;
-  const connectLink = ecosystemConnected ? null : await issueConnectLink(user.id);
 
   await sendTypingIndicator(data.from_number);
 
@@ -185,7 +181,6 @@ async function processInboundMessageAsync(
     gmailConnected,
     connectedAccounts: accountStatus.accounts,
     restaurantsAvailable: !!env.GOOGLE_MAPS_API_KEY,
-    connectLink,
   });
   if (!aiResponse) {
     logger.warn('[webhook] AI returned no response; sending fallback', { ...context, userId: user.id });

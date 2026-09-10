@@ -4,6 +4,7 @@ import { ai } from '@/utils/gemini';
 
 import { SAYLA_SYSTEM_PROMPT, buildConnectionStatusBlock, buildEnvironmentBlock } from './prompts';
 import { pickReactionSchema } from './helpers';
+import { omitConnectionLinks } from './connection-policy';
 import { db } from '@/utils/db';
 import { logger } from '@/utils/log';
 import { safeJsonParse } from '@/utils/json';
@@ -75,7 +76,6 @@ export type ConnectionState = {
     emailConnectedAt: Date | null;
   }>;
   restaurantsAvailable: boolean;
-  connectLink: string | null;
 };
 
 // Cap the number of model↔tool round-trips per user turn so a buggy loop can't run unbounded.
@@ -97,7 +97,7 @@ export async function generateSaylaResponse(
 
   const contents: Content[] = conversationHistory.map((msg) => ({
     role: msg.role,
-    parts: [{ text: msg.content }],
+    parts: [{ text: omitConnectionLinks(msg.content) }],
   }));
 
   // Assemble tool declarations based on what's connected.

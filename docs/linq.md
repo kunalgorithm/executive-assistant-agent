@@ -8,14 +8,14 @@ The server supports Linq alongside SendBlue. Select one with `MESSAGING_PROVIDER
 2. Create a Linq webhook subscription with this exact URL, including the version query parameter:
 
    ```text
-   https://api.ea.getsayla.com/api/messaging/webhook/linq?version=2026-02-03
+   https://executive-assistant-agent.onrender.com/api/messaging/webhook/linq?version=2026-02-03
    ```
 
    Subscribe to `message.received`, `message.sent`, `message.delivered`, `message.read`, and `message.failed`. With the authenticated Linq CLI:
 
    ```bash
    linq webhooks create \
-     --url 'https://api.ea.getsayla.com/api/messaging/webhook/linq?version=2026-02-03' \
+     --url 'https://executive-assistant-agent.onrender.com/api/messaging/webhook/linq?version=2026-02-03' \
      --events message.received,message.sent,message.delivered,message.read,message.failed
    ```
 
@@ -33,7 +33,7 @@ The server supports Linq alongside SendBlue. Select one with `MESSAGING_PROVIDER
 
    Existing database, Gemini, OAuth, and client URL settings still apply. SendBlue credentials can stay stored for rollback; they are not required in Linq mode. The Linq route returns 503 until Linq is selected. After cutover, disable the SendBlue subscriptions to avoid retries against disabled routes.
 
-4. Text the Linq number from your iPhone **after** deployment and webhook setup. Existing users can text `connect` to obtain a fresh account connection link. A brand new user receives the welcome/link automatically.
+4. Text the Linq number from your iPhone **after** deployment and webhook setup. Users can chat and create Sayla reminders immediately. Account connection is optional: only an explicit request such as `connect` sends a link. See [account connection setup](account-connections.md) for the backend pages and OAuth callbacks.
 5. Verify both the response on your phone and these Render logs, correlated by `requestId`:
    - `[webhook] HTTP request received`: request reached the server, even if authentication fails.
    - `[webhook] Linq signature verified; event received`: valid signed Linq event.

@@ -11,15 +11,15 @@ import { fetchPrimaryCalendarTimezone } from './calendar';
 import { db } from '@/utils/db';
 import { env } from '@/utils/env';
 import { logger } from '@/utils/log';
-import { renderIntegrationErrorPage } from '@/modules/integrations/http';
+import {
+  renderIntegrationErrorPage,
+  renderIntegrationSuccessPage,
+  renderIntegrationCancelledPage,
+} from '@/modules/integrations/http';
 import { statusCodes } from '@/utils/http';
 import { sendAndSaveOutbound } from '@/modules/messaging/send';
 import { CALENDAR_CONNECTED_MESSAGE } from '@/modules/messaging/prompts';
 import { upsertConnectedAccount } from '@/modules/integrations/accounts';
-
-function webBase(): string {
-  return env.CLIENT_URL.split(',')[0]!.trim().replace(/\/$/, '');
-}
 
 /**
  * GET /api/auth/google/start?t=<connectToken>
@@ -28,7 +28,7 @@ function webBase(): string {
 export async function handleGoogleStart(req: Request, res: Response) {
   const token = typeof req.query.t === 'string' ? req.query.t : null;
 
-  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET || !env.GOOGLE_REDIRECT_URI) {
+  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
     renderIntegrationErrorPage(
       res,
       'Not configured',
@@ -69,13 +69,13 @@ export async function handleGoogleStart(req: Request, res: Response) {
     return;
   }
 
-  res.redirect(url);
+  res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }).redirect(url);
 }
 
 /**
  * GET /api/auth/google/callback?code=...&state=...
  * Exchanges code for tokens, persists against the user, texts them a confirmation,
- * redirects browser to /connect/success on the web frontend.
+ * renders confirmation directly on the backend.
  */
 export async function handleGoogleCallback(req: Request, res: Response) {
   const code = typeof req.query.code === 'string' ? req.query.code : null;
@@ -84,7 +84,7 @@ export async function handleGoogleCallback(req: Request, res: Response) {
 
   if (errorParam) {
     logger.warn('[google-oauth] User denied consent or flow errored', { errorParam });
-    res.redirect(`${webBase()}/connect?denied=1`);
+    renderIntegrationCancelledPage(res);
     return;
   }
 
@@ -120,7 +120,11 @@ export async function handleGoogleCallback(req: Request, res: Response) {
   });
 
   if (!existing) {
-    renderIntegrationErrorPage(res, 'Unknown account', 'We could not find your account. Text the assistant and try again.');
+    renderIntegrationErrorPage(
+      res,
+      'Unknown account',
+      'We could not find your account. Text the assistant and try again.',
+    );
     return;
   }
 
@@ -193,5 +197,5 @@ export async function handleGoogleCallback(req: Request, res: Response) {
     );
   }
 
-  res.redirect(`${webBase()}/connect/success?provider=google`);
+  renderIntegrationSuccessPage(res, 'google');
 }

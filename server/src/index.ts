@@ -12,7 +12,7 @@ import { globalErrorHandlerMiddleware } from '@/utils/error';
 import { adminRouter } from '@/modules/admin';
 import { startCronJobs } from '@/modules/cron';
 import { googleAuthRouter } from '@/modules/google';
-import { messagingRouter, logMessagingWebhookRequest } from '@/modules/messaging';
+import { messagingRouter, logMessagingWebhookRequest, linqWebhookBodyParser } from '@/modules/messaging';
 import { microsoftAuthRouter } from '@/modules/microsoft';
 import { integrationsRouter } from '@/modules/integrations';
 
@@ -37,6 +37,7 @@ app.use(
   }),
 );
 app.use('/api/messaging/webhook', logMessagingWebhookRequest);
+app.use('/api/messaging/webhook/linq', linqWebhookBodyParser);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -64,9 +65,11 @@ async function startServer() {
 
     app.listen(env.PORT, () => {
       logger.info(`Server running on port: ${env.PORT}`);
-      logger.info('[webhook] Ready to receive SendBlue webhooks', {
-        inboundPath: '/api/messaging/webhook/inbound',
-        statusPath: '/api/messaging/webhook/status',
+      logger.info('[webhook] Ready to receive messaging webhooks', {
+        provider: env.MESSAGING_PROVIDER,
+        inboundPath:
+          env.MESSAGING_PROVIDER === 'linq' ? '/api/messaging/webhook/linq' : '/api/messaging/webhook/inbound',
+        statusPath: env.MESSAGING_PROVIDER === 'linq' ? '/api/messaging/webhook/linq' : '/api/messaging/webhook/status',
         ownerRestrictionEnabled: !!env.OWNER_PHONE_NUMBER,
       });
     });

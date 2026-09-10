@@ -1,18 +1,14 @@
 import { db } from '@/utils/db';
 import { env } from '@/utils/env';
 import { logger } from '@/utils/log';
-import { sendblue } from '@/utils/sendblue';
-import { WEBHOOK_STATUS_CALLBACK_URL } from '@/utils/constants';
-import { cleanSendblueData, splitIntoTexts, typingDelayMs, type Reaction } from '@/modules/messaging/helpers';
+import { splitIntoTexts, typingDelayMs, type Reaction } from '@/modules/messaging/helpers';
+import { sendProviderMessage, sendProviderReaction, sendProviderTyping } from './transport';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function sendTypingIndicator(toNumber: string) {
   try {
-    const result = await sendblue.typingIndicators.send({ number: toNumber });
-    if (result.status === 'ERROR') {
-      throw new Error(`[ERROR] ${result.error_message || 'Unknown error from Sendblue API'}`);
-    }
+    await sendProviderTyping(toNumber);
   } catch (error) {
     logger.warn('[typing] send status failed', { toNumber, error: error instanceof Error ? error.message : error });
   }
@@ -34,22 +30,23 @@ export async function sendAndSaveOutbound(
   });
 
   try {
-    const result = await sendblue.messages.send({
-      content,
-      number: toNumber,
-      from_number: env.SENDBLUE_FROM_NUMBER,
-      status_callback: WEBHOOK_STATUS_CALLBACK_URL,
-      ...(mediaUrl ? { media_url: mediaUrl } : {}),
-    });
+    const result = await sendProviderMessage(content, toNumber, outbound.id, mediaUrl);
 
     await db.channelMessage.update({
       where: { id: outbound.id },
-      data: { sentAt: new Date(), messageHandle: result.message_handle, sendblueData: cleanSendblueData(result) },
+      data: { sentAt: new Date(), messageHandle: result.messageHandle, sendblueData: result.metadata },
+    });
+
+    logger.info('[outbound] Provider accepted message', {
+      provider: env.MESSAGING_PROVIDER,
+      messageId: outbound.id,
+      messageHandle: result.messageHandle,
     });
 
     return outbound.id;
   } catch (error) {
-    logger.error('[outbound] Failed to send message via Sendblue', {
+    logger.error('[outbound] Failed to send message', {
+      provider: env.MESSAGING_PROVIDER,
       messageId: outbound.id,
       toNumber,
       userId: userId ?? 'unknown',
@@ -76,25 +73,29 @@ export async function sendMultipartOutbound(content: string, toNumber: string, u
     await sleep(delay);
 
     try {
-      await sendAndSaveOutbound(chunk, toNumber, userId);
+      await sendAndSaveOutbound(chunk, toNumber, userId, undefined, { throwOnError: true });
     } catch (error) {
-      logger.error('[multipart] Failed to send chunk, continuing with remaining', {
+      logger.error('[multipart] Failed to send chunk; stopping reply', {
         toNumber,
         chunkIndex: i,
         totalChunks: chunks.length,
         error: error instanceof Error ? error.message : error,
       });
+      throw error;
     }
   }
 
-  logger.info('[multipart] All chunks sent', { toNumber, userId: userId ?? 'unknown', chunkCount: chunks.length });
+  logger.info('[multipart] All chunks submitted', {
+    provider: env.MESSAGING_PROVIDER,
+    toNumber,
+    userId: userId ?? 'unknown',
+    chunkCount: chunks.length,
+  });
 }
 
 export async function sendReaction(messageHandle: string, reaction: Reaction) {
   try {
-    await sendblue.post('/api/send-reaction', {
-      body: { reaction, message_handle: messageHandle, from_number: env.SENDBLUE_FROM_NUMBER },
-    });
+    await sendProviderReaction(messageHandle, reaction);
   } catch (error) {
     logger.warn('[reaction] Failed to send tapback reaction', {
       reaction,

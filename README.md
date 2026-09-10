@@ -27,7 +27,7 @@ The MVP is a **single-player** executive assistant for one user (the owner). It 
   - Flag messages requiring human decision
 
 - **Conversational surface**
-  - iMessage only (via SendBlue)
+  - iMessage only (via SendBlue or Linq)
   - Preserves the existing warm, opinionated personality
   - Remembers context across messages (ongoing threads, preferences, recurring people)
 
@@ -67,7 +67,7 @@ The landing page expands Sayla beyond a narrow work-only assistant. To make the 
 
 1. **iMessage / SMS transport**
    - This is the product surface. Without reliable inbound and outbound messaging, none of the Sayla experience works.
-   - Current direction: SendBlue for iMessage-compatible messaging.
+   - Supported providers: SendBlue and Linq. See [Linq setup](docs/linq.md) for the Render cutover and live testing steps.
 
 2. **Calendar**
    - Google Calendar, Outlook / Microsoft 365, and ideally Apple Calendar / CalDAV.
@@ -106,14 +106,14 @@ The landing page expands Sayla beyond a narrow work-only assistant. To make the 
 ## How It Works
 
 ```
-  iMessage ──▶  SendBlue webhook  ──▶  Express server
+  iMessage ──▶  Provider webhook  ──▶  Express server
                                             │
                                             ├─▶ LLM (Gemini) plans a response or tool call
                                             │
                                             ├─▶ Google Calendar API (read/write events)
                                             ├─▶ Gmail API (read threads, draft/send replies)
                                             │
-                                            └─▶ SendBlue ──▶ iMessage reply to owner
+                                            └─▶ SendBlue / Linq ──▶ iMessage reply to owner
 ```
 
 1. Owner texts the assistant's number.
@@ -149,7 +149,7 @@ executive-assistant-agent/
 │   │   └── schema.prisma
 │   └── src/
 │       ├── modules/
-│       │   ├── messaging/  # SendBlue webhook + AI orchestration
+│       │   ├── messaging/  # SendBlue / Linq webhooks + AI orchestration
 │       │   ├── calendar/   # Google Calendar tools (to be built)
 │       │   ├── email/      # Gmail tools (to be built)
 │       │   ├── admin/      # Single-owner admin API
@@ -186,7 +186,7 @@ executive-assistant-agent/
 | Google Gemini       | LLM + tool use        |
 | Google Calendar API | Calendar read/write   |
 | Gmail API           | Email read/draft/send |
-| SendBlue            | iMessage gateway      |
+| SendBlue / Linq     | iMessage gateway      |
 | node-cron           | Scheduled briefings   |
 | Winston             | Logging               |
 
@@ -205,12 +205,13 @@ executive-assistant-agent/
 
 ## API Reference (planned)
 
-### Webhooks (SendBlue)
+### Webhooks
 
-| Endpoint                         | Method | Description      |
-| -------------------------------- | ------ | ---------------- |
-| `/api/messaging/webhook/inbound` | POST   | Inbound iMessage |
-| `/api/messaging/webhook/status`  | POST   | Delivery status  |
+| Endpoint                         | Method | Description                                             |
+| -------------------------------- | ------ | ------------------------------------------------------- |
+| `/api/messaging/webhook/inbound` | POST   | Inbound iMessage                                        |
+| `/api/messaging/webhook/status`  | POST   | Delivery status                                         |
+| `/api/messaging/webhook/linq`    | POST   | Linq inbound and delivery events; [setup](docs/linq.md) |
 
 ### OAuth (Google)
 
@@ -271,7 +272,15 @@ CLIENT_URL="https://your-frontend.com"
 # LLM
 GEMINI_API_KEY="..."
 
-# iMessage (SendBlue)
+# iMessage provider: sendblue (default) or linq
+MESSAGING_PROVIDER="sendblue"
+
+# iMessage (Linq; required only when selected)
+LINQ_API_KEY="..."
+LINQ_FROM_NUMBER="+1..."
+LINQ_WEBHOOK_SECRET="whsec_..."
+
+# iMessage (SendBlue; required only when selected)
 SENDBLUE_API_KEY="..."
 SENDBLUE_SECRET="..."
 SENDBLUE_FROM_NUMBER="+1..."
@@ -337,6 +346,7 @@ pnpm fix            # Run linter + formatter
 # Server
 pnpm dev            # Start dev server
 pnpm build          # Build for production
+pnpm test:messaging # Test Linq webhook authentication and event routing
 pnpm prisma studio  # Open Prisma Studio
 
 # Web
@@ -349,11 +359,11 @@ pnpm preview        # Preview production build
 
 ## External Services
 
-| Service                                     | Purpose                 | Required |
-| ------------------------------------------- | ----------------------- | -------- |
-| [SendBlue](https://sendblue.co)             | iMessage send/receive   | Yes      |
-| [Google AI (Gemini)](https://ai.google.dev) | LLM + tool use          | Yes      |
-| Google Cloud (Calendar + Gmail APIs)        | Calendar & email access | Yes      |
+| Service                                                       | Purpose                 | Required     |
+| ------------------------------------------------------------- | ----------------------- | ------------ |
+| [SendBlue](https://sendblue.co) / [Linq](https://linqapp.com) | iMessage send/receive   | One provider |
+| [Google AI (Gemini)](https://ai.google.dev)                   | LLM + tool use          | Yes          |
+| Google Cloud (Calendar + Gmail APIs)                          | Calendar & email access | Yes          |
 
 ---
 
